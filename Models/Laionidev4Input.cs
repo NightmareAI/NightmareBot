@@ -2,32 +2,39 @@
 
 namespace NightmareBot.Models;
 
-public class Laionidev3Input : IGeneratorInput
+public class Laionidev4Input : IGeneratorInput
 {
     [JsonPropertyName("prompt")]
     public string prompt { get; set; } = "";
+
+    [JsonPropertyName("style_prompt")]
+    public string style_prompt { get; set; } = null;
     [JsonPropertyName("batch_size")]
-    public int batch_size { get; set; } = 2;
+    public int batch_size { get; set; } = 1;
     [JsonPropertyName("side_x")]
-    public int side_x { get; set; } = 64;
+    public string side_x { get; set; } = "64";
     [JsonPropertyName("side_y")]
-    public int side_y { get; set; } = 64;
+    public string side_y { get; set; } = "64";
     [JsonPropertyName("upsample_stage")]
     public bool upsample_stage { get; set; } = true;
     [JsonPropertyName("guidance_scale")]
-    public int guidance_scale { get; set; } = 12;
+    public int guidance_scale { get; set; } = 10;
+
+    [JsonPropertyName("style_guidance_scale")]
+    public int style_guidance_scale { get; set; } = 4;
     [JsonPropertyName("upsample_temp")]
-    public float upsample_temp { get; set; } = 0.998f;
+    public string upsample_temp { get; set; } = "0.997";
     [JsonPropertyName("timestep_respacing")]
     public string timestep_respacing { get; set; } = "50";
     [JsonPropertyName("sr_timestep_respacing")]
-    public string sr_timestep_respacing { get; set; } = "35";
+    public string sr_timestep_respacing { get; set; } = "17";
     [JsonPropertyName("seed")]
     public long seed { get; set; } = 0;
 
-    public Laionidev3Input(string prompt, long seed)
+    public Laionidev4Input(string prompt, string stylePrompt, long seed)
     {
         this.prompt = prompt;
+        this.style_prompt = stylePrompt;
         this.seed = seed;
     }
 }
