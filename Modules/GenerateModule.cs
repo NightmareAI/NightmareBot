@@ -1,5 +1,8 @@
-﻿using Discord;
+﻿using System.Net;
+using Dapr.Client;
+using Discord;
 using Discord.Commands;
+using Microsoft.AspNetCore.Mvc;
 using NightmareBot.Models;
 using NightmareBot.Services;
 
@@ -8,22 +11,89 @@ namespace NightmareBot.Modules;
 public class GenerateModel : ModuleBase<SocketCommandContext>
 {
     private readonly GenerateService _generateService;
+    private readonly DaprClient _daprClient;
 
-    public GenerateModel(GenerateService generateService)
+    public GenerateModel(GenerateService generateService, DaprClient daprClient)
     {
         _generateService = generateService;
+        _daprClient = daprClient;
     } 
     
     [Command("gen")]
-    [Summary("Generates a nightmare using the default model (currently laionide-v4) and a random seed.")]
+    [Summary("Generates a nightmare using the default model (currently pixray).")]
     public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
     {
-        var seed = Random.Shared.NextInt64();
+        var input = new PixrayInput();    
+        await PixrayAsync(text, input);  
+    }
+
+    [Command("pixray")]
+    [Summary("Raw access to the Pixray engine")]
+    public async Task PixrayAsync([Summary("The prediction text")] string text, [Summary("Extra Pixray settings")] PixrayInput input) 
+    {
         var id = Guid.NewGuid();
-        var request =
-            new PredictionRequest<Laionidev4Input>(Context, new Laionidev4Input(text, null, seed), id);
-        _generateService.Laionidev4RequestQueue.Enqueue(request);
-        await Context.Message.AddReactionAsync(new Emoji("✔️"));
+        var request = new PredictionRequest<PixrayInput>(Context, input, id);
+        if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompts))
+            input.prompts = text;
+
+        IAttachment initImage = null;
+        if (Context.Message.Attachments.Any()) {
+            // First attachment is init image, that's all for now
+            initImage = Context.Message.Attachments.First();
+        } else if (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)
+        {
+            initImage = Context.Message.ReferencedMessage.Attachments.First();
+        }
+
+        if (initImage != null)
+        {
+            request.input.init_image = initImage.Url;
+            if (initImage.Width.HasValue && initImage.Height.HasValue) 
+            {
+                double width = initImage.Width.Value;
+                double height = initImage.Height.Value;
+
+                while (width > 512 || height > 512)
+                {
+                    width = width *0.75;
+                    height = height *0.75;
+                }
+
+                request.input.size = new int[] { (int)width, (int)height };
+            }
+        }
+        
+        _daprClient.PublishEventAsync("pubsub", "pixray_requests", request);
+        _generateService.PixrayRequestQueue.Enqueue(request);
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));        
+    } 
+
+    [Command("enhance")]
+    public async Task EnhanceAsync()
+    {
+        var images = new List<string>();
+        var id = Guid.NewGuid();
+
+        foreach (var attachment in Context.Message.Attachments) 
+        {
+            images.Add(attachment.Url);
+        }
+
+        if (Context.Message.ReferencedMessage != null)
+        {
+            foreach (var attachment in Context.Message.ReferencedMessage.Attachments)
+            {
+                images.Add(attachment.Url);
+            }
+        }
+
+        if (images.Any()) {
+
+            var request = new PredictionRequest<SwinIRInput>(Context, new SwinIRInput { ImageUrls = images.ToArray() }, id); 
+            _daprClient.PublishEventAsync("pubsub", "swinir_requests", request);
+            _generateService.SwinIRRequestQueue.Enqueue(request);
+            await Context.Message.AddReactionAsync(new Emoji("✔️"));
+        }
     }
 
     [Command("style")]

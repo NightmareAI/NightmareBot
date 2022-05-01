@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace NightmareBot.Controllers;
@@ -13,6 +14,13 @@ public class ResultController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet("{path}/{filename}.png")]
+    public async Task<ActionResult> Get(string path, string filename)
+    {
+        var file = await System.IO.File.ReadAllBytesAsync($"/home/palp/NightmareBot/result/{path}/{filename}.png");
+        return File(file, "image/png", filename + ".png");
+    }
+    
     [HttpPut("{path}/{filename}.png")]
     public async Task<IActionResult> Put(string path, string filename)
     {

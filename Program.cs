@@ -1,3 +1,4 @@
+using Dapr.AspNetCore;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
@@ -22,7 +23,7 @@ builder.Services.AddOpenTelemetryTracing(x =>
 });
 
 builder.Services.AddSingleton<BotLogger>();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddDapr();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -44,7 +45,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
+app.UseCloudEvents();
 app.MapControllers();
+app.MapSubscribeHandler();
 
 // Discord bot
 

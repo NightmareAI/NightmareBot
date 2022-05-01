@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Discord;
@@ -13,6 +15,7 @@ public class GenerateService : BackgroundService
     public ConcurrentQueue<PredictionRequest<Laionidev3Input>> Laionidev3RequestQueue;
     public ConcurrentQueue<PredictionRequest<PixrayInput>> PixrayRequestQueue;
     public ConcurrentQueue<PredictionRequest<Laionidev4Input>> Laionidev4RequestQueue;
+    public ConcurrentQueue<PredictionRequest<SwinIRInput>> SwinIRRequestQueue;
 
     public GenerateService(IServiceScopeFactory scopeFactory)
     {
@@ -20,6 +23,8 @@ public class GenerateService : BackgroundService
         Laionidev3RequestQueue = new ConcurrentQueue<PredictionRequest<Laionidev3Input>>();
         PixrayRequestQueue = new ConcurrentQueue<PredictionRequest<PixrayInput>>();
         Laionidev4RequestQueue = new ConcurrentQueue<PredictionRequest<Laionidev4Input>>();
+        SwinIRRequestQueue = new ConcurrentQueue<PredictionRequest<SwinIRInput>>();
+        
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -43,6 +48,12 @@ public class GenerateService : BackgroundService
             {
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLaionideV4(v4request, discordClient);
+            }
+
+            while (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
+            {
+                var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
+                await this.ProcessSwinIR(swinirRequest, discordClient);
             }
         }
     }
@@ -72,7 +83,7 @@ public class GenerateService : BackgroundService
         }
 
         var attachmentPath =
-            $"{Directory.GetCurrentDirectory()}\\result\\{request.Id}\\upsample_predictions.png";
+            $"{Directory.GetCurrentDirectory()}/result/{request.Id}/upsample_predictions.png";
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
         await channel.SendFileAsync(attachmentPath, $"> {request.input.prompt} (Seed: {request.input.seed})", messageReference: messageReference);
@@ -103,7 +114,7 @@ public class GenerateService : BackgroundService
         }
 
         var attachmentPath =
-            $"{Directory.GetCurrentDirectory()}\\result\\{request.Id}\\sr_predictions.png";
+            $"{Directory.GetCurrentDirectory()}/result/{request.Id}/sr_predictions.png";
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
         await channel.SendFileAsync(attachmentPath, $"> {request.input.prompt} (Seed: {request.input.seed})", messageReference: messageReference);
@@ -112,21 +123,110 @@ public class GenerateService : BackgroundService
     
     private async Task GeneratePixray(PredictionRequest<PixrayInput> request, DiscordSocketClient client)
     {
+        var startTime = DateTime.UtcNow;
         var guild = client.GetGuild(request.GuildId);
         var channel = guild.GetTextChannel(request.ChannelId);
         var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-
-        await client.SetGameAsync(request.input.prompts, null, ActivityType.Playing);
+        var attachmentPath = $"/home/palp/NightmareBot/result/{request.Id}";
         
-        var httpClient = new HttpClient();
-        httpClient.Timeout = TimeSpan.FromMinutes(5);
+        if (string.IsNullOrWhiteSpace(request.input.seed))
+            request.input.seed = request.Id.ToString();
+        string config = string.Empty;
+        try {
+
+            // re-host images locally
+            Directory.CreateDirectory(attachmentPath);
+            if (!string.IsNullOrWhiteSpace(request.input.init_image))
+            {
+                using var httpClient = new HttpClient();
+                var imageData = await httpClient.GetByteArrayAsync(request.input.init_image);
+                await File.WriteAllBytesAsync($"{attachmentPath}/init_image.png", imageData);
+                request.input.init_image = $"http://localhost:49257/result/{request.Id}/init_image.png";
+                request.input.init_noise = "none";
+                request.input.init_image_alpha = 255;
+            }
+
+            // create pixray config
+            using (var writer = new StringWriter()) 
+            {
+                writer.WriteLine($"prompts: {request.input.prompts}");
+                writer.WriteLine($"drawer: {request.input.drawer}");
+                if (!string.IsNullOrWhiteSpace(request.input.vqgan_model))
+                    writer.WriteLine($"vqgan_model: {request.input.vqgan_model}");                            
+                writer.WriteLine($"seed: {request.input.seed}");        
+                if (!string.IsNullOrWhiteSpace(request.input.init_image))
+                    writer.WriteLine($"init_image: {request.input.init_image}");
+                writer.WriteLine($"init_noise: {request.input.init_noise}");
+                writer.WriteLine($"init_image_alpha: {request.input.init_image_alpha}");
+                if (request.input.size != null)
+                    writer.WriteLine($"size: [{string.Join(',', request.input.size)}]");
+                if (request.input.num_cuts.HasValue)
+                    writer.WriteLine($"num_cuts: {request.input.num_cuts}");
+                writer.WriteLine($"quality: {request.input.quality}");
+                if (request.input.iterations.HasValue)
+                    writer.WriteLine($"iterations: {request.input.iterations}");
+                writer.WriteLine($"batches: {request.input.batches}");
+                if (!string.IsNullOrWhiteSpace(request.input.clip_models))
+                    writer.WriteLine($"clip_models: {request.input.clip_models}");
+                writer.WriteLine($"learning_rate: {request.input.learning_rate}");
+                writer.WriteLine($"learning_rate_drops: [{string.Join(',', request.input.learning_rate_drops)}]");
+                writer.WriteLine($"auto_stop: {request.input.auto_stop}");
+                if (!string.IsNullOrWhiteSpace(request.input.filters))
+                    writer.WriteLine($"filters: {request.input.filters}");
+                if (!string.IsNullOrWhiteSpace(request.input.palette))
+                    writer.WriteLine($"palette: {request.input.palette}");
+
+                if (!string.IsNullOrWhiteSpace(request.input.custom_loss))
+                {
+                    writer.WriteLine($"custom_loss: {request.input.custom_loss}");                
+                    if (request.input.custom_loss.Contains("saturation") || request.input.custom_loss.Contains("symmetry"))
+                        writer.WriteLine($"saturation_weight: {request.input.saturation_weight}");
+                    if (request.input.custom_loss.Contains("smoothness"))
+                        writer.WriteLine($"smoothness_weight: {request.input.smoothness_weight}");
+                    if (request.input.custom_loss.Contains("palette"))
+                        writer.WriteLine($"palette_weight: {request.input.palette_weight}");
+                }
+                config = writer.ToString();                
+            }
+            
+            File.WriteAllText($"{attachmentPath}/config.yaml", config);
+            Console.WriteLine(config);
+            await client.SetGameAsync(request.input.prompts, null, ActivityType.Playing);
+            await channel.SendMessageAsync($"Now processing: ```{config}```");
+        } 
+        catch (Exception ex) {
+            await channel.SendMessageAsync($"You're Boned: {ex.Message}", messageReference: messageReference);
+            return;
+        }
         try
         {
-            var result = await httpClient.PostAsJsonAsync("http://localhost:5000/predictions", request);
-
-            if (!result.IsSuccessStatusCode)
+            var process = new Process() 
             {
-                await channel.SendMessageAsync($"Sorry, it's fucked. [{result.StatusCode}]");
+                StartInfo = new ProcessStartInfo()
+                {
+                    FileName = "./pixray.sh",
+                    WorkingDirectory = "/home/palp/NightmareBot",
+                    Arguments = $"\"{attachmentPath}\"",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = true
+                }
+            };
+            Console.WriteLine(process.StartInfo.Arguments);
+            process.Start();
+            string lastLine = string.Empty;
+/*
+            while (!process.StandardOutput.EndOfStream) 
+            {
+                lastLine = process.StandardOutput.ReadLine();
+                Console.WriteLine(lastLine);
+            }*/
+            process.WaitForExit();
+
+            //if (process.ExitCode != 0)
+            if (!File.Exists($"{attachmentPath}/output.png"))
+            {
+                await channel.SendMessageAsync($"Sorry, it's fucked. [{lastLine}]");
                 return;
             }
         }
@@ -134,14 +234,77 @@ public class GenerateService : BackgroundService
         {
             await channel.SendMessageAsync($"Help, I'm exploding. {ex.Message}");
             return;
-        }
-
-        var attachmentPath =
-            $"{Directory.GetCurrentDirectory()}\\result\\{request.Id}\\out.png";
+        }        
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
-        await channel.SendFileAsync(attachmentPath, $"> {request.input.prompts}", messageReference: messageReference);
+        var title = $"> {request.input.prompts}\n({request.input.drawer}, {(DateTime.UtcNow - startTime).TotalSeconds} seconds)";
+        if (File.Exists($"{attachmentPath}/steps/output.mp4"))
+            await channel.SendFileAsync($"{attachmentPath}/steps/output.mp4", title);
+        await channel.SendFileAsync($"{attachmentPath}/output.png", title, messageReference: messageReference);
+    }
 
+    public async Task ProcessSwinIR(PredictionRequest<SwinIRInput> request, DiscordSocketClient client)
+    {
+        var startTime = DateTime.UtcNow;
+        var guild = client.GetGuild(request.GuildId);
+        var channel = guild.GetTextChannel(request.ChannelId);
+        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
+        var basePath = $"/home/palp/NightmareBot/enhance/{request.Id}";
+        var inputPath = basePath + "/lq";
+        var outputPath = basePath + "/results";
+        Directory.CreateDirectory(inputPath);
+
+
+        using var httpClient = new HttpClient();
+
+        int ix = 0;
+        foreach (var url in request.input.ImageUrls) 
+        {
+            var imageData = await httpClient.GetByteArrayAsync(url);
+            string fileName = $"{ix++}.{url.Substring(url.Length -3)}";
+            await File.WriteAllBytesAsync($"{inputPath}/{fileName}", imageData);
+        }
+
+        try
+        {
+            var process = new Process() 
+            {
+                StartInfo = new ProcessStartInfo()
+                {
+                    FileName = "./swinir.sh",
+                    WorkingDirectory = "/home/palp/NightmareBot",
+                    Arguments = $"\"{basePath}\"",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = true
+                }
+            };
+            Console.WriteLine(process.StartInfo.Arguments);
+            process.Start();
+            string lastLine = string.Empty;
+/*
+            while (!process.StandardOutput.EndOfStream) 
+            {
+                lastLine = process.StandardOutput.ReadLine();
+                Console.WriteLine(lastLine);
+            }*/
+            process.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            await channel.SendMessageAsync($"Help, I'm exploding. {ex.Message}");
+            return;
+        }        
+
+        await client.SetGameAsync("the art critics", null, ActivityType.Listening);
+        var title = $"Restoration took {(DateTime.UtcNow - startTime).TotalSeconds} seconds";
+
+//        List<Embed> embeds = new List<Embed>();
+        
+        foreach (var file in Directory.EnumerateFiles(outputPath)) 
+        {
+          await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
+        } 
     }
 
 }

@@ -29,6 +29,6 @@ public class PredictionRequest<T> where T : IGeneratorInput
         this.UserId = context.User.Id;
         this.MessageId = context.Message.Id;
         this.input = input;
-        this.output_file_prefix = $"http://10.40.5.128:5224/Result/{id}/";
+        this.output_file_prefix = $"http://172.20.18.171:5224/Result/{id}/";
     }
 }
