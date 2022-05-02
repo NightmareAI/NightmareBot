@@ -142,8 +142,6 @@ public class GenerateService : BackgroundService
                 var imageData = await httpClient.GetByteArrayAsync(request.input.init_image);
                 await File.WriteAllBytesAsync($"{attachmentPath}/init_image.png", imageData);
                 request.input.init_image = $"http://localhost:49257/result/{request.Id}/init_image.png";
-                request.input.init_noise = "none";
-                request.input.init_image_alpha = 255;
             }
 
             // create pixray config
@@ -156,8 +154,10 @@ public class GenerateService : BackgroundService
                 writer.WriteLine($"seed: {request.input.seed}");        
                 if (!string.IsNullOrWhiteSpace(request.input.init_image))
                     writer.WriteLine($"init_image: {request.input.init_image}");
-                writer.WriteLine($"init_noise: {request.input.init_noise}");
-                writer.WriteLine($"init_image_alpha: {request.input.init_image_alpha}");
+                if (!string.IsNullOrWhiteSpace(request.input.init_noise))
+                    writer.WriteLine($"init_noise: {request.input.init_noise}");
+                if (request.input.init_image_alpha.HasValue)
+                    writer.WriteLine($"init_image_alpha: {request.input.init_image_alpha}");
                 if (request.input.size != null)
                     writer.WriteLine($"size: [{string.Join(',', request.input.size)}]");
                 if (request.input.num_cuts.HasValue)

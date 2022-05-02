@@ -16,9 +16,9 @@ public class PixrayInput : IGeneratorInput
 
     public string init_image { get; set; }
 
-    public int init_image_alpha { get; set; } = 200;
+    public int? init_image_alpha { get; set; }
 
-    public string init_noise { get; set; } = "pixels";
+    public string init_noise { get; set; }
     public string quality { get; set; } = "normal";
     public int? num_cuts {get; set; }
     public IEnumerable<int> size { get; set; } = null;
