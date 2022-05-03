@@ -17,6 +17,7 @@ public class GenerateService : BackgroundService
     public ConcurrentQueue<PredictionRequest<Laionidev4Input>> Laionidev4RequestQueue;
     public ConcurrentQueue<PredictionRequest<SwinIRInput>> SwinIRRequestQueue;
     public ConcurrentQueue<PredictionRequest<LatentDiffusionInput>> LatentDiffusionQueue;
+    public ConcurrentQueue<PredictionRequest<DeepMusicInput>> DeepMusicQueue;
 
     public GenerateService(IServiceScopeFactory scopeFactory)
     {
@@ -26,6 +27,7 @@ public class GenerateService : BackgroundService
         Laionidev4RequestQueue = new ConcurrentQueue<PredictionRequest<Laionidev4Input>>();
         SwinIRRequestQueue = new ConcurrentQueue<PredictionRequest<SwinIRInput>>();
         LatentDiffusionQueue = new ConcurrentQueue<PredictionRequest<LatentDiffusionInput>>();        
+        DeepMusicQueue = new ConcurrentQueue<PredictionRequest<DeepMusicInput>>();
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -55,6 +57,12 @@ public class GenerateService : BackgroundService
             {
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLatentDiffusion(ldmRequest, discordClient);
+            }
+
+            if (DeepMusicQueue.TryDequeue(out var deepMusicRequest))
+            {
+                var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
+                await this.GenerateDeepMusicViz(deepMusicRequest, discordClient);
             }
 
             while (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
@@ -308,6 +316,82 @@ public class GenerateService : BackgroundService
         {
           await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
         }         
+    }
+
+    public async Task GenerateDeepMusicViz(PredictionRequest<DeepMusicInput> request, DiscordSocketClient client)
+    {
+        var startTime = DateTime.UtcNow;
+        var guild = client.GetGuild(request.GuildId);
+        var channel = guild.GetTextChannel(request.ChannelId);
+        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
+        var outputPath = $"/home/palp/NightmareBot/result/{request.Id}";
+        Directory.CreateDirectory(outputPath);
+
+        // Download audio file
+        if (string.IsNullOrWhiteSpace(request.input.song))
+        {
+            await channel.SendMessageAsync("No input audio.", messageReference: messageReference);
+            return;
+        }
+
+        try 
+        {
+            using var httpClient = new HttpClient();
+            var fileData = await httpClient.GetByteArrayAsync(request.input.song);
+            var fileName = request.input.song.Substring(request.input.song.LastIndexOf('/') + 1);
+            await File.WriteAllBytesAsync($"{outputPath}/{fileName}", fileData);
+            request.input.song = $"{outputPath}/{fileName}";
+        }
+        catch (Exception ex) 
+        {
+            await channel.SendMessageAsync($"Could not download audio file: {ex.Message}", messageReference: messageReference);
+            return;
+        }
+
+        var args = $"--song \"{request.input.song}\" --resolution {request.input.resolution} --duration {request.input.duration} --pitch_sensitivity {request.input.pitch_sensitivity} --tempo_sensitivity {request.input.tempo_sensitivity} --depth {request.input.depth} --jitter {request.input.jitter} --truncation {request.input.truncation} --smooth_factor {request.input.smooth_factor} --batch_size {request.input.batch_size}";
+        await channel.SendMessageAsync($"Dreaming of a song: ```{args}```");
+
+        args += $" --output_file \"{outputPath}/output.mp4\"";
+
+        try
+        {
+            var process = new Process() 
+            {
+                StartInfo = new ProcessStartInfo()
+                {
+                    FileName = "./deepmusic.sh",
+                    WorkingDirectory = "/home/palp/NightmareBot",
+                    Arguments = $"{args}",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = true
+                }
+            };
+            Console.WriteLine(process.StartInfo.Arguments);
+            process.Start();
+            string lastLine = string.Empty;
+/*
+            while (!process.StandardOutput.EndOfStream) 
+            {
+                lastLine = process.StandardOutput.ReadLine();
+                Console.WriteLine(lastLine);
+            }*/
+            process.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            await channel.SendMessageAsync($"Help, I'm exploding. {ex.Message}");
+            return;
+        }        
+
+
+        await client.SetGameAsync("the art critics", null, ActivityType.Listening);
+        var title = $"> {request.input.song}\n(deep-music-viz, {(DateTime.UtcNow - startTime).TotalSeconds} seconds)";
+
+        if (File.Exists($"{outputPath}/output.mp4"))
+            await channel.SendFileAsync($"{outputPath}/output.mp4", title);
+        else
+            await channel.SendMessageAsync("Sorry, it broke.", messageReference: messageReference);
     }
 
     public async Task ProcessSwinIR(PredictionRequest<SwinIRInput> request, DiscordSocketClient client)

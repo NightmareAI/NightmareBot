@@ -29,7 +29,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     [Command("ldm")]
     [Summary("Generates a nightmare using the latent diffusion model")]
-    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput? input) 
+    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput input = default) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
@@ -38,6 +38,31 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         
         _generateService.LatentDiffusionQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
+    }
+
+    [Command("viz")]
+    [Summary("Deep music visualizer")]
+    public async Task DeepMusicVizAsync([Summary("Deep Music Settings")] DeepMusicInput input = default)
+    {
+        var id = Guid.NewGuid();
+        var request = new PredictionRequest<DeepMusicInput>(Context, input, id);
+        
+        IAttachment song = null;
+        if (Context.Message.Attachments.Any()) {
+            song = Context.Message.Attachments.First();
+        } else if (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)
+        {
+            song = Context.Message.ReferencedMessage.Attachments.First();
+        }
+
+        if (song == null)
+            await Context.Message.AddReactionAsync(new Emoji("❌"));
+        
+        request.input.song = song.Url;
+
+        _generateService.DeepMusicQueue.Enqueue(request);
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));        
+
     }
 
     [Command("pixray")]
@@ -66,7 +91,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
                 double width = initImage.Width.Value;
                 double height = initImage.Height.Value;
 
-                while (width > 512 || height > 512)
+                while (width > 1024 || height > 1024)
                 {
                     width = width *0.75;
                     height = height *0.75;
