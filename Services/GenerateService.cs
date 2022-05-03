@@ -540,7 +540,7 @@ public class GenerateService : BackgroundService
         
         foreach (var file in Directory.EnumerateFiles(outputPath)) 
         {
-          await channel.SendMessageAsync($"{file}", title, messageReference: messageReference);
+          await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
         } 
     }
 
