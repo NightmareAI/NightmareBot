@@ -7,7 +7,7 @@ public class DeepMusicInput : IGeneratorInput
 {
   public string song {get; set;}
   public int resolution {get; set;} = 512;
-  public int duration {get; set;} = 30;
+  public int? duration {get; set;}
   public int pitch_sensitivity { get; set; } = 220;
   public float tempo_sensitivity {get; set;} = 0.25f;
   public float depth {get; set;} = 1.0f;
