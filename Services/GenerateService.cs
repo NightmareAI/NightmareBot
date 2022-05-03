@@ -397,10 +397,11 @@ public class GenerateService : BackgroundService
 
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
-        var title = $"> {request.input.song}\n(deep-music-viz, {(DateTime.UtcNow - startTime).TotalSeconds} seconds)";
+        var url = $"https://nightmarebot.com/result/{request.Id}/output.mp4";
+        var message = $"> {request.input.song}\n(deep-music-viz, {(DateTime.UtcNow - startTime).TotalSeconds} seconds)\n{url}";
 
         if (File.Exists($"{outputPath}/output.mp4"))
-            await channel.SendFileAsync($"{outputPath}/output.mp4", title);
+            await channel.SendMessageAsync(message, messageReference: messageReference);
         else
             await channel.SendMessageAsync("Sorry, it broke.", messageReference: messageReference);
     }
@@ -539,7 +540,7 @@ public class GenerateService : BackgroundService
         
         foreach (var file in Directory.EnumerateFiles(outputPath)) 
         {
-          await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
+          await channel.SendMessageAsync($"{file}", title, messageReference: messageReference);
         } 
     }
 
