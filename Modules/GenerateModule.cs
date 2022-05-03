@@ -29,7 +29,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     [Command("ldm")]
     [Summary("Generates a nightmare using the latent diffusion model")]
-    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput input) 
+    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput? input) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
@@ -37,6 +37,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             input.prompt = text;
         
         _generateService.LatentDiffusionQueue.Enqueue(request);
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
     [Command("pixray")]
