@@ -27,6 +27,16 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         await PixrayAsync(text, input);  
     }
 
+    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput input) 
+    {
+        var id = Guid.NewGuid();
+        var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
+        if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompt))
+            input.prompt = text;
+        
+        _generateService.LatentDiffusionQueue.Enqueue(request);
+    }
+
     [Command("pixray")]
     [Summary("Raw access to the Pixray engine")]
     public async Task PixrayAsync([Summary("The prediction text")] string text, [Summary("Extra Pixray settings")] PixrayInput input) 

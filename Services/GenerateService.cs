@@ -16,6 +16,7 @@ public class GenerateService : BackgroundService
     public ConcurrentQueue<PredictionRequest<PixrayInput>> PixrayRequestQueue;
     public ConcurrentQueue<PredictionRequest<Laionidev4Input>> Laionidev4RequestQueue;
     public ConcurrentQueue<PredictionRequest<SwinIRInput>> SwinIRRequestQueue;
+    public ConcurrentQueue<PredictionRequest<LatentDiffusionInput>> LatentDiffusionQueue;
 
     public GenerateService(IServiceScopeFactory scopeFactory)
     {
@@ -24,7 +25,7 @@ public class GenerateService : BackgroundService
         PixrayRequestQueue = new ConcurrentQueue<PredictionRequest<PixrayInput>>();
         Laionidev4RequestQueue = new ConcurrentQueue<PredictionRequest<Laionidev4Input>>();
         SwinIRRequestQueue = new ConcurrentQueue<PredictionRequest<SwinIRInput>>();
-        
+        LatentDiffusionQueue = new ConcurrentQueue<PredictionRequest<LatentDiffusionInput>>();        
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -48,6 +49,12 @@ public class GenerateService : BackgroundService
             {
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLaionideV4(v4request, discordClient);
+            }
+
+            if (LatentDiffusionQueue.TryDequeue(out var ldmRequest))
+            {
+                var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
+                await this.GenerateLatentDiffusion(ldmRequest, discordClient);
             }
 
             while (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
@@ -241,6 +248,66 @@ public class GenerateService : BackgroundService
         if (File.Exists($"{attachmentPath}/steps/output.mp4"))
             await channel.SendFileAsync($"{attachmentPath}/steps/output.mp4", title);
         await channel.SendFileAsync($"{attachmentPath}/output.png", title, messageReference: messageReference);
+    }
+
+
+    public async Task GenerateLatentDiffusion(PredictionRequest<LatentDiffusionInput> request, DiscordSocketClient client)
+    {
+        var startTime = DateTime.UtcNow;
+        var guild = client.GetGuild(request.GuildId);
+        var channel = guild.GetTextChannel(request.ChannelId);
+        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
+        var outputPath = $"/home/palp/NightmareBot/result/{request.Id}";
+        Directory.CreateDirectory(outputPath);
+
+
+        var args = $"--prompt \"{request.input.prompt}\" --ddim_steps {request.input.ddim_steps} --ddim_eta {request.input.ddim_eta} --n_iter {request.input.n_iter} --n_samples {request.input.n_samples} --scale {request.input.scale} --H {request.input.H} --W {request.input.W}";
+        if (request.input.plms)
+            args += " --plms";        
+
+        await channel.SendMessageAsync($"Latently diffusing: ```{args}```");
+
+        args += $" --outdir \"{outputPath}\"";
+
+        try
+        {
+            var process = new Process() 
+            {
+                StartInfo = new ProcessStartInfo()
+                {
+                    FileName = "./ldm.sh",
+                    WorkingDirectory = "/home/palp/NightmareBot",
+                    Arguments = $"{args}",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = true
+                }
+            };
+            Console.WriteLine(process.StartInfo.Arguments);
+            process.Start();
+            string lastLine = string.Empty;
+/*
+            while (!process.StandardOutput.EndOfStream) 
+            {
+                lastLine = process.StandardOutput.ReadLine();
+                Console.WriteLine(lastLine);
+            }*/
+            process.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            await channel.SendMessageAsync($"Help, I'm exploding. {ex.Message}");
+            return;
+        }        
+
+
+        await client.SetGameAsync("the art critics", null, ActivityType.Listening);
+        var title = $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - startTime).TotalSeconds} seconds)";
+        
+        foreach (var file in Directory.EnumerateFiles($"{outputPath}/samples")) 
+        {
+          await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
+        }         
     }
 
     public async Task ProcessSwinIR(PredictionRequest<SwinIRInput> request, DiscordSocketClient client)
