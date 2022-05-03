@@ -20,13 +20,15 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     } 
     
     [Command("gen")]
-    [Summary("Generates a nightmare using the default model (currently pixray).")]
+    [Summary("Generates a nightmare using the default model (currently pixray vqgan).")]
     public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
     {
         var input = new PixrayInput();    
         await PixrayAsync(text, input);  
     }
 
+    [Command("ldm")]
+    [Summary("Generates a nightmare using the latent diffusion model")]
     public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput input) 
     {
         var id = Guid.NewGuid();
@@ -187,7 +189,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     [Command("clipdraw")]
     [Summary("Generates a nightmare using the clipdraw model, which may suck.")]
-    public async Task ClipdrawAsyns([Remainder] [Summary("The prediction text")] string text)
+    public async Task ClipdrawAsync([Remainder] [Summary("The prediction text")] string text)
     {
         /*
         var id = Guid.NewGuid();
