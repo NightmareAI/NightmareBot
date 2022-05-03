@@ -18,6 +18,7 @@ public class GenerateService : BackgroundService
     public ConcurrentQueue<PredictionRequest<SwinIRInput>> SwinIRRequestQueue;
     public ConcurrentQueue<PredictionRequest<LatentDiffusionInput>> LatentDiffusionQueue;
     public ConcurrentQueue<PredictionRequest<DeepMusicInput>> DeepMusicQueue;
+    public ConcurrentQueue<PredictionRequest<VRTInput>> VRTQueue;
 
     public GenerateService(IServiceScopeFactory scopeFactory)
     {
@@ -28,6 +29,7 @@ public class GenerateService : BackgroundService
         SwinIRRequestQueue = new ConcurrentQueue<PredictionRequest<SwinIRInput>>();
         LatentDiffusionQueue = new ConcurrentQueue<PredictionRequest<LatentDiffusionInput>>();        
         DeepMusicQueue = new ConcurrentQueue<PredictionRequest<DeepMusicInput>>();
+        VRTQueue = new ConcurrentQueue<PredictionRequest<VRTInput>>();
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -63,6 +65,12 @@ public class GenerateService : BackgroundService
             {
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateDeepMusicViz(deepMusicRequest, discordClient);
+            }
+
+            if (VRTQueue.TryDequeue(out var vrtRequest))
+            {
+                var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
+                await this.ProcessVRT(vrtRequest, discordClient);
             }
 
             while (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
@@ -351,7 +359,7 @@ public class GenerateService : BackgroundService
         var args = $"--song \"{request.input.song}\" --resolution {request.input.resolution} --pitch_sensitivity {request.input.pitch_sensitivity} --tempo_sensitivity {request.input.tempo_sensitivity} --depth {request.input.depth} --jitter {request.input.jitter} --truncation {request.input.truncation} --smooth_factor {request.input.smooth_factor} --batch_size {request.input.batch_size}";
         if (request.input.duration.HasValue)
             args += $" --duration {request.input.duration}";
-            
+
         await channel.SendMessageAsync($"Dreaming of a song: ```{args}```");
 
         args += $" --output_file \"{outputPath}/output.mp4\"";
@@ -460,5 +468,80 @@ public class GenerateService : BackgroundService
           await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
         } 
     }
+
+    public async Task ProcessVRT(PredictionRequest<VRTInput> request, DiscordSocketClient client)
+    {
+        var startTime = DateTime.UtcNow;
+        var guild = client.GetGuild(request.GuildId);
+        var channel = guild.GetTextChannel(request.ChannelId);
+        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
+        var basePath = $"/home/palp/NightmareBot/enhance/{request.Id}";
+        var inputPath = basePath + "/lq";
+        var outputPath = basePath + "/results";
+        Directory.CreateDirectory(inputPath);
+
+        // Download video file
+        if (string.IsNullOrWhiteSpace(request.input.video))
+        {
+            await channel.SendMessageAsync("No input video.", messageReference: messageReference);
+            return;
+        }
+
+        try 
+        {
+            using var httpClient = new HttpClient();
+            var fileData = await httpClient.GetByteArrayAsync(request.input.video);
+            var fileName = request.input.video.Substring(request.input.video.LastIndexOf('/') + 1);
+            await File.WriteAllBytesAsync($"{outputPath}/{fileName}", fileData);
+            request.input.video = $"{outputPath}/{fileName}";
+        }
+        catch (Exception ex) 
+        {
+            await channel.SendMessageAsync($"Could not download audio file: {ex.Message}", messageReference: messageReference);
+            return;
+        }
+
+        try
+        {
+            var process = new Process() 
+            {
+                StartInfo = new ProcessStartInfo()
+                {
+                    FileName = "./vrt.sh",
+                    WorkingDirectory = "/home/palp/NightmareBot",
+                    Arguments = $"\"{basePath}\"",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = true
+                }
+            };
+            Console.WriteLine(process.StartInfo.Arguments);
+            process.Start();
+            string lastLine = string.Empty;
+/*
+            while (!process.StandardOutput.EndOfStream) 
+            {
+                lastLine = process.StandardOutput.ReadLine();
+                Console.WriteLine(lastLine);
+            }*/
+            process.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            await channel.SendMessageAsync($"Help, I'm exploding. {ex.Message}");
+            return;
+        }        
+
+        await client.SetGameAsync("the art critics", null, ActivityType.Listening);
+        var title = $"Restoration took {(DateTime.UtcNow - startTime).TotalSeconds} seconds";
+
+//        List<Embed> embeds = new List<Embed>();
+        
+        foreach (var file in Directory.EnumerateFiles(outputPath)) 
+        {
+          await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
+        } 
+    }
+
 
 }

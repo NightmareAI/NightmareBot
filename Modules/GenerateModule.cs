@@ -134,6 +134,31 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
     }
 
+    [Command("venhance")]
+    public async Task VideoEnhanceAsync()
+    {
+        var images = new List<string>();
+        var id = Guid.NewGuid();
+
+
+        IAttachment video = null;
+        if (Context.Message.Attachments.Any()) {
+            video = Context.Message.Attachments.First();
+        } else if (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)
+        {
+            video = Context.Message.ReferencedMessage.Attachments.First();
+        }
+
+        if (video == null)
+            await Context.Message.AddReactionAsync(new Emoji("❌"));
+        
+
+        var request = new PredictionRequest<VRTInput>(Context, new VRTInput { video = video.Url }, id); 
+        _daprClient.PublishEventAsync("pubsub", "vrt_requests", request);
+        _generateService.VRTQueue.Enqueue(request);
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));
+    }
+
     [Command("style")]
     public async Task Generate4Async([Summary("Style tags")] string style, [Remainder][Summary("The prediction text")] string text)
     {
