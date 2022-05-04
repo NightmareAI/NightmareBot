@@ -20,11 +20,11 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     } 
     
     [Command("gen")]
-    [Summary("Generates a nightmare using the default model (currently pixray vqgan).")]
+    [Summary("Generates a nightmare using the default model (currently latent diffusion).")]
     public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
     {
-        var input = new PixrayInput();    
-        await PixrayAsync(text, input);  
+        var input = new LatentDiffusionInput();    
+        await LatentDiffusionAsync(text, input);  
     }
 
     [Command("ldm")]

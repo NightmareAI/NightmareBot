@@ -13,5 +13,5 @@ public class LatentDiffusionInput : IGeneratorInput
   public int H { get; set; } = 256;
   public int W { get; set; } = 256;
   public float scale { get; set; } = 5.0f;
-  public bool plms { get; set; } = false;
+  public bool plms { get; set; } = true;
 }
