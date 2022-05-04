@@ -359,6 +359,12 @@ public class GenerateService : BackgroundService
         var args = $"--song \"{request.input.song}\" --resolution {request.input.resolution} --pitch_sensitivity {request.input.pitch_sensitivity} --tempo_sensitivity {request.input.tempo_sensitivity} --depth {request.input.depth} --jitter {request.input.jitter} --truncation {request.input.truncation} --smooth_factor {request.input.smooth_factor} --batch_size {request.input.batch_size}";
         if (request.input.duration.HasValue)
             args += $" --duration {request.input.duration}";
+        if (!string.IsNullOrWhiteSpace(request.input.classes))
+            args += $" --classes {request.input.classes}";
+        if (request.input.num_classes.HasValue)
+            args += $" --num_classes {request.input.num_classes}";
+        if (request.input.sort_classes_by_power)
+            args += $" --sort_classes_by_power 1";
 
         await channel.SendMessageAsync($"Dreaming of a song: ```{args}```");
 

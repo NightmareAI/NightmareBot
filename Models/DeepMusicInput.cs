@@ -18,4 +18,7 @@ public class DeepMusicInput : IGeneratorInput
   public int batch_size {get; set;} = 30;
   public bool use_previous_classes {get; set;} = false;
   public bool use_previous_vectors {get; set;} = false;
+  public string classes {get; set;}
+  public int? num_classes {get; set;}
+  public bool sort_classes_by_power {get; set;}
 }
