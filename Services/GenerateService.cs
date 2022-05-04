@@ -332,7 +332,7 @@ public class GenerateService : BackgroundService
         var guild = client.GetGuild(request.GuildId);
         var channel = guild.GetTextChannel(request.ChannelId);
         var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-        var outputPath = $"/home/palp/NightmareBot/result/{request.Id}";
+        var outputPath = $"/var/www/result/{request.Id}";
         Directory.CreateDirectory(outputPath);
 
         // Download audio file
@@ -540,7 +540,7 @@ public class GenerateService : BackgroundService
         
         foreach (var file in Directory.EnumerateFiles(outputPath)) 
         {
-          await channel.SendMessageAsync($"{file}", title, messageReference: messageReference);
+          await channel.SendFileAsync($"{file}", title, messageReference: messageReference);
         } 
     }
 
