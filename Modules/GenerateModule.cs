@@ -23,7 +23,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     [Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
     public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
     {
-        if (Context.Message.Attachments.Any() || Context.Message.ReferencedMessage?.Attachments.Any() ?? false) 
+        if (Context.Message.Attachments.Any() || (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)) 
         {            
             var input = new PixrayInput();
             await PixrayAsync(text, input);
