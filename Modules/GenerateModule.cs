@@ -20,11 +20,19 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     } 
     
     [Command("gen")]
-    [Summary("Generates a nightmare using the default model (currently latent diffusion).")]
+    [Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
     public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
     {
-        var input = new LatentDiffusionInput();    
-        await LatentDiffusionAsync(text, input);  
+        if (Context.Message.Attachments.Any() || Context.Message.ReferencedMessage?.Attachments.Any() ?? false) 
+        {            
+            var input = new PixrayInput();
+            await PixrayAsync(text, input);
+        } 
+        else 
+        {
+            var input = new LatentDiffusionInput();    
+            await LatentDiffusionAsync(text, input);  
+        }        
     }
 
     [Command("ldm")]
