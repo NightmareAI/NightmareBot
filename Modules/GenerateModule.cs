@@ -45,7 +45,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             input.prompt = text;
         
         _generateService.LatentDiffusionQueue.Enqueue(request);
-        _daprClient.PublishEventAsync<LatentDiffusionInput>("pubsub", "request.latent_diffusion", input);
+        _daprClient.PublishEventAsync("pubsub", "request.latent_diffusion", request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
@@ -111,7 +111,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         }
         
-        _daprClient.PublishEventAsync<PixrayInput>("pubsub", "request.pixray", input);
+        _daprClient.PublishEventAsync("pubsub", "request.pixray", request);
         _generateService.PixrayRequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     } 
@@ -138,7 +138,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (images.Any()) {
             var input = new SwinIRInput { ImageUrls = images.ToArray() };
             var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
-            _daprClient.PublishEventAsync("pubsub", "request.swinir", input);
+            _daprClient.PublishEventAsync("pubsub", "request.swinir", request);
             _generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
         }
