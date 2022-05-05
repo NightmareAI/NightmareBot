@@ -29,7 +29,7 @@ public class PixrayInput : IGeneratorInput
     public int batches { get; set; } = 1;
     public double learning_rate {get; set; } = .2;
     public IEnumerable<int> learning_rate_drops {get; set;} = new[] {75};
-    public bool auto_stop {get; set;} = false;
+    public bool auto_stop {get; set;} = true;
     public string clip_models {get; set;}
     public string filters {get; set;}
     public string palette {get; set;}
