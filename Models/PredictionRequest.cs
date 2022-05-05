@@ -1,25 +1,20 @@
-﻿using System.Text.Json.Serialization;
-using Discord.Commands;
+﻿using Discord.Commands;
 using Discord.WebSocket;
 
 namespace NightmareBot.Models;
 
 public class PredictionRequest<T> where T : IGeneratorInput
 {
-    [JsonPropertyName("input")]
     public T input { get; set; }
 
-    [JsonPropertyName("output_file_prefix")]
-    public string output_file_prefix { get; set; }
+    public ulong guild_id { get; set; }
+    public ulong channel_id { get; set; }
 
-    [JsonIgnore] public ulong GuildId { get; set; }
-    [JsonIgnore] public ulong ChannelId { get; set; }
-
-    [JsonIgnore] public ulong UserId { get; set; }
+    public ulong user_id { get; set; }
     
-    [JsonIgnore] public ulong MessageId { get; set; }
+    public ulong message_id { get; set; }
     
-    [JsonIgnore] public Guid Id { get; set; }
+    public Guid id { get; set; }
     
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
@@ -29,6 +24,5 @@ public class PredictionRequest<T> where T : IGeneratorInput
         this.UserId = context.User.Id;
         this.MessageId = context.Message.Id;
         this.input = input;
-        this.output_file_prefix = $"http://172.20.18.171:5224/Result/{id}/";
     }
 }
