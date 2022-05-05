@@ -136,8 +136,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
 
         if (images.Any()) {
-
-            var request = new PredictionRequest<SwinIRInput>(Context, new SwinIRInput { ImageUrls = images.ToArray() }, id); 
+            var input = new SwinIRInput { ImageUrls = images.ToArray() };
+            var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
             _daprClient.PublishEventAsync("pubsub", "request.swinir", input);
             _generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
@@ -162,8 +162,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (video == null)
             await Context.Message.AddReactionAsync(new Emoji("❌"));
         
-
-        var request = new PredictionRequest<VRTInput>(Context, new VRTInput { video = video.Url }, id); 
+        var input = new VRTInput { video = video.Url };
+        var request = new PredictionRequest<VRTInput>(Context, input, id); 
         _daprClient.PublishEventAsync("pubsub", "request.vrt", input);
         _generateService.VRTQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
