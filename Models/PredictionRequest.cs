@@ -18,11 +18,11 @@ public class PredictionRequest<T> where T : IGeneratorInput
     
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
-        this.Id = id;
-        this.GuildId = context.Guild.Id;
-        this.ChannelId = context.Channel.Id;
-        this.UserId = context.User.Id;
-        this.MessageId = context.Message.Id;
+        this.id = id;
+        this.guild_id = context.Guild.Id;
+        this.channel_id = context.Channel.Id;
+        this.user_id = context.User.Id;
+        this.message_id = context.Message.Id;
         this.input = input;
     }
 }
