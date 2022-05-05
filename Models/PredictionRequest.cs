@@ -15,6 +15,28 @@ public class PredictionRequest<T> where T : IGeneratorInput
     public ulong message_id { get; set; }
     
     public Guid id { get; set; }
+
+    public string request_type { get {
+        switch (input) {
+            case DeepMusicInput:
+                return "deep-music";
+            case Laionidev3Input:
+                return "laionide-v3";
+            case Laionidev4Input:
+                return "laionide-v4";
+            case LatentDiffusionInput:
+                return "latent-diffusion";
+            case PixrayInput:
+                return "pixray";
+            case SwinIRInput:
+                return "swinir";
+            case VRTInput:
+                return "vrt";
+            default:
+                return "unknown";
+        }
+    }
+    }
     
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
