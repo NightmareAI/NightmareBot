@@ -45,7 +45,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             input.prompt = text;
         
         _generateService.LatentDiffusionQueue.Enqueue(request);
-        _daprClient.PublishEventAsync("pubsub", "request.latent_diffusion", input);
+        _daprClient.PublishEventAsync<LatentDiffusionInput>("pubsub", "request.latent_diffusion", input);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
@@ -111,7 +111,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         }
         
-        _daprClient.PublishEventAsync("pubsub", "request.pixray", input);
+        _daprClient.PublishEventAsync<PixrayInput>("pubsub", "request.pixray", input);
         _generateService.PixrayRequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     } 
