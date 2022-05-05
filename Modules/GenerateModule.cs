@@ -45,6 +45,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             input.prompt = text;
         
         _generateService.LatentDiffusionQueue.Enqueue(request);
+        _daprClient.PublishEventAsync("pubsub", "latent_diffusion_requests", request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
@@ -69,6 +70,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         request.input.song = song.Url;
 
         _generateService.DeepMusicQueue.Enqueue(request);
+        _daprClient.PublishEventAsync("pubsub", "deep_music_requests", request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
 
     }
@@ -196,6 +198,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var seed = Random.Shared.NextInt64();
         var id = Guid.NewGuid();
         var request = new PredictionRequest<Laionidev4Input>(Context, new Laionidev4Input(text, styleTags, seed), id);
+        _daprClient.PublishEventAsync("pubsub", "laionide_v4_requests", request);
         _generateService.Laionidev4RequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
@@ -223,6 +226,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var id = Guid.NewGuid();
         var request = new PredictionRequest<PixrayInput>(Context, new PixrayInput { drawer = drawer, prompts = prompt, }, id);
         _generateService.PixrayRequestQueue.Enqueue(request);
+        _daprClient.PublishEventAsync("pubsub", "pixray_requests", request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
         
     }
@@ -243,6 +247,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         };
         _generateService.Laionidev3RequestQueue.Enqueue(request);
+        _daprClient.PublishEventAsync("pubsub", "laionide_v3_requests", request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
