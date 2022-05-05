@@ -45,7 +45,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             input.prompt = text;
         
         _generateService.LatentDiffusionQueue.Enqueue(request);
-        _daprClient.PublishEventAsync("pubsub", "request.latent_diffusion", request);
+        _daprClient.PublishEventAsync("pubsub", "request.latent_diffusion", input);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
@@ -70,7 +70,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         request.input.song = song.Url;
 
         _generateService.DeepMusicQueue.Enqueue(request);
-        _daprClient.PublishEventAsync("pubsub", "request.deep_music", request);
+        _daprClient.PublishEventAsync("pubsub", "request.deep_music", input);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
 
     }
@@ -111,7 +111,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         }
         
-        _daprClient.PublishEventAsync("pubsub", "request.pixray", request);
+        _daprClient.PublishEventAsync("pubsub", "request.pixray", input);
         _generateService.PixrayRequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     } 
@@ -138,7 +138,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (images.Any()) {
 
             var request = new PredictionRequest<SwinIRInput>(Context, new SwinIRInput { ImageUrls = images.ToArray() }, id); 
-            _daprClient.PublishEventAsync("pubsub", "request.swinir", request);
+            _daprClient.PublishEventAsync("pubsub", "request.swinir", input);
             _generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
         }
@@ -164,7 +164,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         
 
         var request = new PredictionRequest<VRTInput>(Context, new VRTInput { video = video.Url }, id); 
-        _daprClient.PublishEventAsync("pubsub", "request.vrt", request);
+        _daprClient.PublishEventAsync("pubsub", "request.vrt", input);
         _generateService.VRTQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
