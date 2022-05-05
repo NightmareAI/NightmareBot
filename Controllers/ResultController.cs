@@ -14,26 +14,32 @@ namespace NightmareBot.Controllers;
 public class ResultController : ControllerBase
 {
     private readonly ILogger<ResultController> _logger;
-    private readonly DiscordSocketClient _discord;
 
-    public ResultController(ILogger<ResultController> logger, DiscordSocketClient discord)
+    public ResultController(ILogger<ResultController> logger)
     {
         _logger = logger;
-        _discord = discord;
     }
 
     [Topic("pubsub", "response.latent-diffusion")]
-    [HttpPost("latent-diffusion")]
-    public async Task<ActionResult> LatentDiffusionResponse([FromBody] PredictionRequest<LatentDiffusionInput> request) 
+    [Route("latent-diffusion")]
+    [HttpPost]
+    public async Task<ActionResult> LatentDiffusionResponse(ResponseModel response, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient) 
     {
-        var guild = _discord.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
-
-        var message = $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds)\n";
-        foreach (var sample in request.sample_filenames)
+        _logger.LogInformation($"Context: Guild {response.context.guild} Channel {response.context.channel} Message {response.context.message} User {response.context.user}");
+        var guild = discordClient.GetGuild(response.context.guild);
+        if (guild == null)
         {
-            message += $"https://dumb.dev/nightmarebot-output/{request.id}/samples/{sample}\n";
+            _logger.LogWarning("Unable to get guild from discord");
+            return BadRequest();
+        }
+        var channel = guild.GetTextChannel(response.context.channel);
+        var messageReference = new MessageReference(response.context.message, response.context.channel, response.context.guild);
+
+        //var message = $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds)\n";
+        string message = "";
+        foreach (var sample in response.images)
+        {
+            message += $"https://dumb.dev/nightmarebot-output/{response.id}/samples/{sample}\n";
         }
 
         await channel.SendMessageAsync(message.ToString(), messageReference: messageReference);

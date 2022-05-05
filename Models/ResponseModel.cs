@@ -1,7 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace NightmareBot.Models;
 
 public class ResponseModel 
 {
+    [JsonPropertyName("id")]
     public Guid id {get; set;}
-    public IEnumerable<string> images {get; set;}
+    [JsonPropertyName("context")]
+    public DiscordContext context {get; set;}
+    [JsonPropertyName("images")]
+    public string[] images {get; set;}
 }

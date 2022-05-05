@@ -11,7 +11,8 @@ public class PixrayInput : IGeneratorInput
     public string drawer { get; set; } = "vqgan";
 
     public string seed { get; set; }
-    
+
+    [JsonPropertyName("image_prompts")]   
     public string image_prompts {get; set; }
 
     public string init_image { get; set; }

@@ -83,9 +83,9 @@ public class GenerateService : BackgroundService
     
     private async Task GenerateLaionideV3(PredictionRequest<Laionidev3Input> request, DiscordSocketClient client)
     {
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
 
         await client.SetGameAsync(request.input.prompt, null, ActivityType.Playing);
         
@@ -114,9 +114,9 @@ public class GenerateService : BackgroundService
 
     private async Task GenerateLaionideV4(PredictionRequest<Laionidev4Input> request, DiscordSocketClient client)
     {
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
 
         await client.SetGameAsync(request.input.prompt, null, ActivityType.Playing);
         
@@ -147,9 +147,9 @@ public class GenerateService : BackgroundService
     private async Task GeneratePixray(PredictionRequest<PixrayInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
         var attachmentPath = $"/home/palp/NightmareBot/result/{request.id}";
         
         if (string.IsNullOrWhiteSpace(request.input.seed))
@@ -281,9 +281,9 @@ public class GenerateService : BackgroundService
     public async Task GenerateLatentDiffusion(PredictionRequest<LatentDiffusionInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
         var outputPath = $"/home/palp/NightmareBot/result/{request.id}";
         Directory.CreateDirectory(outputPath);
 
@@ -340,9 +340,9 @@ public class GenerateService : BackgroundService
     public async Task GenerateDeepMusicViz(PredictionRequest<DeepMusicInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
         var outputPath = $"/var/www/html/result/{request.id}";
         Directory.CreateDirectory(outputPath);
 
@@ -426,9 +426,9 @@ public class GenerateService : BackgroundService
     public async Task ProcessSwinIR(PredictionRequest<SwinIRInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
         var basePath = $"/home/palp/NightmareBot/enhance/{request.id}";
         var inputPath = basePath + "/lq";
         var outputPath = basePath + "/results";
@@ -490,9 +490,9 @@ public class GenerateService : BackgroundService
     public async Task ProcessVRT(PredictionRequest<VRTInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.guild_id);
-        var channel = guild.GetTextChannel(request.channel_id);
-        var messageReference = new MessageReference(request.message_id, request.channel_id, request.guild_id);
+        var guild = client.GetGuild(request.context.guild);
+        var channel = guild.GetTextChannel(request.context.channel);
+        var messageReference = new MessageReference(request.context.message, request.context.channel, request.context.guild);
         var basePath = $"/home/palp/NightmareBot/enhance/{request.id}";
         var inputPath = basePath + "/lq";
         var outputPath = basePath + "/results";

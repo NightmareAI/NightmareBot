@@ -1,30 +1,37 @@
 ﻿using Discord.Commands;
 using Discord.WebSocket;
+using System.Text.Json.Serialization;
 
 namespace NightmareBot.Models;
 
 public class PredictionRequest<T> where T : IGeneratorInput
 {
+    [JsonPropertyName("input")]
     public T input { get; set; }
 
-    public ulong guild_id { get; set; }
-    public ulong channel_id { get; set; }
-
-    public ulong user_id { get; set; }
+    [JsonPropertyName("context")]
+    public DiscordContext context { get; set; } = new DiscordContext();
     
-    public ulong message_id { get; set; }
-    
+    [JsonPropertyName("id")]
     public Guid id { get; set; }
 
+    [JsonPropertyName("sample_filenames")]
     public string[] sample_filenames { get; set; } = new string[0];
 
+    [JsonPropertyName("request_time")]
     public DateTime request_time { get; set; } = DateTime.UtcNow;
 
+    [JsonPropertyName("start_time")]
     public DateTime start_time { get; set; }
 
+    [JsonPropertyName("complete_time")]
     public DateTime complete_time {get; set;}
 
-    public string request_type { get {
+    // weird way to deal with json serialization issues
+    [JsonPropertyName("request_type")]
+    public string request_type { get { return _request_type; } set {} }
+    
+    private string _request_type { get {
         switch (input) {
             case DeepMusicInput:
                 return "deep-music";
@@ -46,13 +53,18 @@ public class PredictionRequest<T> where T : IGeneratorInput
     }
     }
     
+    public PredictionRequest()
+    {
+        
+    }
+
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
         this.id = id;
-        this.guild_id = context.Guild.Id;
-        this.channel_id = context.Channel.Id;
-        this.user_id = context.User.Id;
-        this.message_id = context.Message.Id;
+        this.context.guild = context.Guild.Id;
+        this.context.channel = context.Channel.Id;
+        this.context.user = context.User.Id;
+        this.context.message = context.Message.Id;
         this.input = input;
     }
 }
