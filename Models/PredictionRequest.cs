@@ -16,6 +16,14 @@ public class PredictionRequest<T> where T : IGeneratorInput
     
     public Guid id { get; set; }
 
+    public string[] sample_filenames { get; set; } = new string[0];
+
+    public DateTime request_time { get; set; } = DateTime.UtcNow;
+
+    public DateTime start_time { get; set; }
+
+    public DateTime complete_time {get; set;}
+
     public string request_type { get {
         switch (input) {
             case DeepMusicInput:

@@ -288,7 +288,7 @@ public class GenerateService : BackgroundService
         Directory.CreateDirectory(outputPath);
 
 
-        var args = $"--prompt \"{request.input.prompt}\" --ddim_steps {request.input.ddim_steps} --ddim_eta {request.input.ddim_eta} --n_iter {request.input.n_iter} --n_samples {request.input.n_samples} --scale {request.input.scale} --H {request.input.H} --W {request.input.W}";
+        var args = $"--prompt \"{request.input.prompt}\" --ddim_steps {request.input.ddim_steps} --ddim_eta {request.input.ddim_eta} --n_iter {request.input.n_iter} --n_samples {request.input.n_samples} --scale {request.input.scale} --H {request.input.height} --W {request.input.width}";
         if (request.input.plms)
             args += " --plms";        
 

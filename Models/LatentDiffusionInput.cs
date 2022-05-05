@@ -10,8 +10,8 @@ public class LatentDiffusionInput : IGeneratorInput
   public float ddim_eta { get; set; } = 0.0f;
   public int n_iter { get; set; } = 1;
   public int n_samples {get ; set; } = 1;
-  public int H { get; set; } = 320;
-  public int W { get; set; } = 256;
+  public int height { get; set; } = 320;
+  public int width { get; set; } = 256;
   public float scale { get; set; } = 5.0f;
   public bool plms { get; set; } = true;
 }
