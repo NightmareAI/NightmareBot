@@ -48,7 +48,7 @@ public class ResultController : ControllerBase
 
             var message =
                 $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n" +
-                $"https://dumb.dev/nightmarebot-output/{response.id}/output.png\n";
+                $"https://dumb.dev/nightmarebot-output/{response.id}/results.png\n";
 
             request.sample_filenames = response.images;
             request.complete_time = DateTime.UtcNow;
