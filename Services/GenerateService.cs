@@ -73,7 +73,7 @@ public class GenerateService : BackgroundService
                 await this.ProcessVRT(vrtRequest, discordClient);
             }
 
-            while (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
+            if (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
             {
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.ProcessSwinIR(swinirRequest, discordClient);
