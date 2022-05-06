@@ -40,7 +40,7 @@ public class CommandHandler
                     context = new DiscordContext
                     {
                         channel = component.ChannelId.ToString(), message = component.Message.Id.ToString(),
-                        user = component.User.Id.ToString()
+                        user = component.User.Id.ToString(), guild = (component.Channel as SocketGuildChannel).Guild.Id.ToString()
                     },
                     id = Guid.NewGuid(),
                     request_time = DateTime.UtcNow,
@@ -52,6 +52,7 @@ public class CommandHandler
 
                 using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
                 await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
+                await component.RespondAsync();
                 break;
             }
         }

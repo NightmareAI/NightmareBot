@@ -29,13 +29,14 @@ public class ResultController : ControllerBase
         try
         {
             var channel_id = ulong.Parse(response.context.channel);
-            var channel = await discordClient.GetChannelAsync(channel_id) as SocketGuildChannel;
-            var guildChannel = channel.Guild.GetTextChannel(channel_id);
-            var messageReference = new MessageReference(ulong.Parse(response.context.message), channel_id);
+            var guild_id = ulong.Parse(response.context.guild);
+            var guild = discordClient.GetGuild(guild_id);
+            var channel = guild.GetTextChannel(channel_id);
+            var messageReference = new MessageReference(ulong.Parse(response.context.message), channel_id, guild_id);
             var message = new StringBuilder();
             foreach (var image in response.images)
                 message.AppendLine($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
-            await guildChannel.SendMessageAsync(message.ToString(), messageReference: messageReference);
+            await channel.SendMessageAsync(message.ToString(), messageReference: messageReference);
             return Ok();
         }
         catch (Exception ex)
