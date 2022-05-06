@@ -137,7 +137,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
 
         if (images.Any()) {
-            var input = new SwinIRInput { ImageUrls = images.ToArray() };
+            var input = new SwinIRInput { images = images.ToArray() };
             var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
             Enqueue(request);
             _generateService.SwinIRRequestQueue.Enqueue(request);

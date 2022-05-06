@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
+
 namespace NightmareBot.Models;
 
 public class SwinIRInput : IGeneratorInput
 {
-  public string[] ImageUrls { get; set; }
+  [JsonPropertyName("images")]
+  public string[] images { get; set; }
 
 }

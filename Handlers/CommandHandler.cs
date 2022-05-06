@@ -46,12 +46,12 @@ public class CommandHandler
                     request_time = DateTime.UtcNow,
                     input = new SwinIRInput
                     {
-                        ImageUrls = new[] { imageUrl }
+                        images = new[] { imageUrl }
                     }
                 };
 
                 using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
-                daprClient.PublishEventAsync("servicebus-pubsub", "request.swinir", request);
+                await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
                 break;
             }
         }

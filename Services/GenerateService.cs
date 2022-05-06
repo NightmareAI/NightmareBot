@@ -456,7 +456,7 @@ public class GenerateService : BackgroundService
         using var httpClient = new HttpClient();
 
         int ix = 0;
-        foreach (var url in request.input.ImageUrls) 
+        foreach (var url in request.input.images) 
         {
             var imageData = await httpClient.GetByteArrayAsync(url);
             string fileName = $"{ix++}.{url.Substring(url.Length -3)}";
