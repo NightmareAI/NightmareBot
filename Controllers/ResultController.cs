@@ -32,13 +32,20 @@ public class ResultController : ControllerBase
                 return Ok();
             var channel_id = ulong.Parse(response.context.channel);
             var guild_id = ulong.Parse(response.context.guild);
+            var message_id = ulong.Parse(response.context.message);
             var guild = discordClient.GetGuild(guild_id);
             var channel = guild.GetTextChannel(channel_id);
+            var message = await channel.GetMessageAsync(message_id);
             var messageReference = new MessageReference(ulong.Parse(response.context.message), channel_id, guild_id);
-            var message = new StringBuilder();
+            var messageText = new StringBuilder();
             foreach (var image in response.images)
-                message.AppendLine($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
-            await channel.SendMessageAsync(message.ToString(), messageReference: messageReference);
+                messageText.AppendLine($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
+
+            var component = message.Components.First() as SocketMessageComponent;
+            if (component != null)
+                await component.RespondAsync(message.ToString());
+            else
+                await channel.SendMessageAsync(messageText.ToString(), messageReference: messageReference);
             return Ok();
         }
         catch (Exception ex)
@@ -71,6 +78,7 @@ public class ResultController : ControllerBase
             }
 
             var channel_id = ulong.Parse(request.context.channel);
+            var message_id = ulong.Parse(request.context.message);
             var channel = guild.GetTextChannel(channel_id);
             var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
 
