@@ -52,7 +52,7 @@ public class CommandHandler
 
                 using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
                 await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
-                await component.DeferAsync();
+                await component.UpdateAsync(f => f.Content += "Enhancing...");
                 break;
             }
         }
