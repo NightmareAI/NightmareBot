@@ -28,6 +28,8 @@ public class ResultController : ControllerBase
     {
         try
         {
+            if (!response.images.Any())
+                return Ok();
             var channel_id = ulong.Parse(response.context.channel);
             var guild_id = ulong.Parse(response.context.guild);
             var guild = discordClient.GetGuild(guild_id);
