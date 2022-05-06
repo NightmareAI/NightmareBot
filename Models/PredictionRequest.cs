@@ -61,10 +61,10 @@ public class PredictionRequest<T> where T : IGeneratorInput
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
         this.id = id;
-        this.context.guild = context.Guild.Id;
-        this.context.channel = context.Channel.Id;
-        this.context.user = context.User.Id;
-        this.context.message = context.Message.Id;
+        this.context.guild = context.Guild.Id.ToString();
+        this.context.channel = context.Channel.Id.ToString();
+        this.context.user = context.User.Id.ToString();
+        this.context.message = context.Message.Id.ToString();
         this.input = input;
     }
 }

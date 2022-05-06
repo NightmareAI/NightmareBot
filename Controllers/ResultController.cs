@@ -20,20 +20,22 @@ public class ResultController : ControllerBase
         _logger = logger;
     }
 
-    [Topic("pubsub", "response.latent-diffusion")]
+    [Topic("discord-workqueue", "response.latent-diffusion")]
     [Route("latent-diffusion")]
     [HttpPost]
     public async Task<ActionResult> LatentDiffusionResponse(ResponseModel response, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient) 
     {
         _logger.LogInformation($"Context: Guild {response.context.guild} Channel {response.context.channel} Message {response.context.message} User {response.context.user}");
-        var guild = discordClient.GetGuild(response.context.guild);
+        var guild_id = ulong.Parse(response.context.guild);
+        var guild = discordClient.GetGuild(guild_id);
         if (guild == null)
         {
             _logger.LogWarning("Unable to get guild from discord");
             return BadRequest();
         }
-        var channel = guild.GetTextChannel(response.context.channel);
-        var messageReference = new MessageReference(response.context.message, response.context.channel, response.context.guild);
+        var channel_id = ulong.Parse(response.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(response.context.message), channel_id, guild_id);
 
         //var message = $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds)\n";
         string message = "";

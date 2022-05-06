@@ -5,14 +5,14 @@ namespace NightmareBot.Models;
 public class DiscordContext
 {
     [JsonPropertyName("guild")]
-    public ulong guild { get; set; }
+    public string guild { get; set; }
 
     [JsonPropertyName("channel")]
-    public ulong channel { get; set; }
+    public string channel { get; set; }
 
     [JsonPropertyName("user")]
-    public ulong user { get; set; }
+    public string user { get; set; }
     
     [JsonPropertyName("message")]
-    public ulong message { get; set; }
+    public string message { get; set; }
 }

@@ -44,7 +44,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompt))
             input.prompt = text;
         
-        _generateService.LatentDiffusionQueue.Enqueue(request);
+        //_generateService.LatentDiffusionQueue.Enqueue(request);
         Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
@@ -264,7 +264,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
     {
-        await _daprClient.PublishEventAsync("pubsub", $"request.{request.request_type}", request);
+        await _daprClient.PublishEventAsync("discord-workqueue", $"request.{request.request_type}", request);
     }
     
 }
