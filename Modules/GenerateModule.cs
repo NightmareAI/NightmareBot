@@ -140,7 +140,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             var input = new SwinIRInput { images = images.ToArray() };
             var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
             Enqueue(request);
-            _generateService.SwinIRRequestQueue.Enqueue(request);
+            //_generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
         }
     }

@@ -41,7 +41,7 @@ public class ResultController : ControllerBase
             foreach (var image in response.images)
                 messageText.AppendLine($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
 
-            var component = message.Components.First() as SocketMessageComponent;
+            var component = message.Components.FirstOrDefault() as SocketMessageComponent;
             if (component != null)
                 await component.RespondAsync(message.ToString());
             else
