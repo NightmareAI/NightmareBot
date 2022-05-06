@@ -11,7 +11,8 @@ public class CommandHandler
     private readonly DiscordSocketClient _client;
     private readonly CommandService _commands;
     private IServiceProvider? _serviceProvider = null;
-    
+    private ILogger<CommandHandler> _logger;
+
     public CommandHandler(DiscordSocketClient client, CommandService service)
     {
         _client = client;
@@ -23,6 +24,7 @@ public class CommandHandler
         _client.MessageReceived += HandleCommandAsync;
         _client.ButtonExecuted += HandleButtonAsync;
         _serviceProvider = serviceProvider;
+        _logger = serviceProvider.GetRequiredService<ILogger<CommandHandler>>();
         await _commands.AddModulesAsync(assembly: Assembly.GetEntryAssembly(), services: serviceProvider);
     }
 
@@ -33,26 +35,34 @@ public class CommandHandler
         {
             case "enhance":
             {
-                var imageUrl = $"https://dumb.dev/nightmarebot-output/{idParts[1]}/{idParts[2]}";
-                var request = new PredictionRequest<SwinIRInput>()
+                try
                 {
-
-                    context = new DiscordContext
+                    var imageUrl = $"https://dumb.dev/nightmarebot-output/{idParts[1]}/{idParts[2]}";
+                    var request = new PredictionRequest<SwinIRInput>()
                     {
-                        channel = component.ChannelId.ToString(), message = component.Message.Id.ToString(),
-                        user = component.User.Id.ToString(), guild = (component.Channel as SocketGuildChannel).Guild.Id.ToString()
-                    },
-                    id = Guid.NewGuid(),
-                    request_time = DateTime.UtcNow,
-                    input = new SwinIRInput
-                    {
-                        images = new[] { imageUrl }
-                    }
-                };
 
-                using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
-                await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
-                await component.RespondAsync("Enhancing...");
+                        context = new DiscordContext
+                        {
+                            channel = component.ChannelId.ToString(), message = component.Message.Id.ToString(),
+                            user = component.User.Id.ToString(),
+                            guild = (component.Channel as SocketGuildChannel).Guild.Id.ToString()
+                        },
+                        id = Guid.NewGuid(),
+                        request_time = DateTime.UtcNow,
+                        input = new SwinIRInput
+                        {
+                            images = new[] { imageUrl }
+                        }
+                    };
+
+                    using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
+                    await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
+                    await component.RespondAsync("Enhancing...");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error handling enhance request");
+                }
                 break;
             }
         }
