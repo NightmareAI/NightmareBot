@@ -2,6 +2,7 @@
 using Dapr.Client;
 using Discord;
 using Discord.Commands;
+using Discord.Interactions;
 using Microsoft.AspNetCore.Mvc;
 using NightmareBot.Models;
 using NightmareBot.Services;
@@ -20,8 +21,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     } 
     
     [Command("gen")]
-    [Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
-    public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
+    [Discord.Commands.Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
+    public async Task GenerateAsync([Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         if (Context.Message.Attachments.Any() || (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)) 
         {            
@@ -36,8 +37,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("ldm")]
-    [Summary("Generates a nightmare using the latent diffusion model")]
-    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput input = default) 
+    [Discord.Commands.Summary("Generates a nightmare using the latent diffusion model")]
+    public async Task LatentDiffusionAsync([Discord.Commands.Summary("The prediction text")] string text, [Discord.Commands.Summary("Latent diffusion settings")] LatentDiffusionInput input = default) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
@@ -50,8 +51,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("viz")]
-    [Summary("Deep music visualizer")]
-    public async Task DeepMusicVizAsync([Summary("Deep Music Settings")] DeepMusicInput input = default)
+    [Discord.Commands.Summary("Deep music visualizer")]
+    public async Task DeepMusicVizAsync([Discord.Commands.Summary("Deep Music Settings")] DeepMusicInput input = default)
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<DeepMusicInput>(Context, input, id);
@@ -76,8 +77,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("pixray")]
-    [Summary("Raw access to the Pixray engine")]
-    public async Task PixrayAsync([Summary("The prediction text")] string text, [Summary("Extra Pixray settings")] PixrayInput input) 
+    [Discord.Commands.Summary("Raw access to the Pixray engine")]
+    public async Task PixrayAsync([Discord.Commands.Summary("The prediction text")] string text, [Discord.Commands.Summary("Extra Pixray settings")] PixrayInput input) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<PixrayInput>(Context, input, id);
@@ -170,7 +171,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("style")]
-    public async Task Generate4Async([Summary("Style tags")] string style, [Remainder][Summary("The prediction text")] string text)
+    public async Task Generate4Async([Discord.Commands.Summary("Style tags")] string style, [Remainder][Discord.Commands.Summary("The prediction text")] string text)
     {
         string styleTags = "";
         switch (style)
@@ -204,7 +205,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("draw")]
-    public async Task DrawAsync([Summary("The drawer engine")] string drawer, [Remainder][Summary("The prompt")] string prompt) 
+    public async Task DrawAsync([Discord.Commands.Summary("The drawer engine")] string drawer, [Remainder][Discord.Commands.Summary("The prompt")] string prompt) 
     {
         switch (drawer)
         {
@@ -232,9 +233,9 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
     
     [Command("regen")]
-    [Summary("Generates a nightmare using the default model and a specific seed with higher settings.")]
-    public async Task RegenerateAsync([Summary("The seed")] long seed,
-        [Remainder] [Summary("The prediction text")] string text)
+    [Discord.Commands.Summary("Generates a nightmare using the default model and a specific seed with higher settings.")]
+    public async Task RegenerateAsync([Discord.Commands.Summary("The seed")] long seed,
+        [Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<Laionidev3Input>(Context, new Laionidev3Input(text, seed), id)
@@ -252,8 +253,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("clipdraw")]
-    [Summary("Generates a nightmare using the clipdraw model, which may suck.")]
-    public async Task ClipdrawAsync([Remainder] [Summary("The prediction text")] string text)
+    [Discord.Commands.Summary("Generates a nightmare using the clipdraw model, which may suck.")]
+    public async Task ClipdrawAsync([Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         /*
         var id = Guid.NewGuid();
