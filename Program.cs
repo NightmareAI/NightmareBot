@@ -32,7 +32,7 @@ builder.Services.AddSingleton(x => new InteractionService(x.GetRequiredService<D
 builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
 builder.Services.AddSingleton<GenerateService>();
-builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
+//builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
 
 var app = builder.Build();
 

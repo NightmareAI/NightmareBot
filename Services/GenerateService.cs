@@ -36,45 +36,51 @@ public class GenerateService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = ScopeFactory.CreateScope();
             if (Laionidev3RequestQueue.TryDequeue(out var request))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLaionideV3(request, discordClient);
             }
 
             if (PixrayRequestQueue.TryDequeue(out var pixrayRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GeneratePixray(pixrayRequest, discordClient);
             }
 
             if (Laionidev4RequestQueue.TryDequeue(out var v4request))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLaionideV4(v4request, discordClient);
             }
 
             if (LatentDiffusionQueue.TryDequeue(out var ldmRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLatentDiffusion(ldmRequest, discordClient);
             }
 
             if (DeepMusicQueue.TryDequeue(out var deepMusicRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateDeepMusicViz(deepMusicRequest, discordClient);
             }
 
             if (VRTQueue.TryDequeue(out var vrtRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.ProcessVRT(vrtRequest, discordClient);
             }
 
             if (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.ProcessSwinIR(swinirRequest, discordClient);
             }
