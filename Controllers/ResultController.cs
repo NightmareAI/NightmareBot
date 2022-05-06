@@ -47,9 +47,10 @@ public class ResultController : ControllerBase
             var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
 
             var message =
-                $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n";
+                $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n" +
+                $"https://dumb.dev/nightmarebot-output/{response.id}/results.png\n";
 
-                    request.sample_filenames = response.images;
+            request.sample_filenames = response.images;
             request.complete_time = DateTime.UtcNow;
             await daprClient.SaveStateAsync("statestore", response.id.ToString(), request);
             var builder = new ComponentBuilder();
@@ -59,7 +60,7 @@ public class ResultController : ControllerBase
                     WithCustomId(response.images[ix]).
                     WithLabel($"Enhance {ix+1}"));
 
-            await channel.SendFileAsync($"https://dumb.dev/nightmarebot-output/{response.id}/results.png\n", message, messageReference: messageReference, components: builder.Build());
+            await channel.SendMessageAsync(message, messageReference: messageReference, components: builder.Build());
             return Ok();
         }
         catch (Exception ex)
