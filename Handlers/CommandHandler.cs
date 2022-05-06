@@ -55,7 +55,7 @@ public class CommandHandler
                         }
                     };
 
-                    using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
+                    using var daprClient = new DaprClientBuilder().Build();
                     await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
                     await component.RespondAsync("Enhancing...");
                 }
