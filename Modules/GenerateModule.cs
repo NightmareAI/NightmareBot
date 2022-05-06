@@ -265,6 +265,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
     {
         await _daprClient.PublishEventAsync("discord-workqueue", $"request.{request.request_type}", request);
+        await _daprClient.SaveStateAsync("request-store", request.id.ToString(), request);
     }
     
 }
