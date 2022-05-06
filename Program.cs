@@ -1,10 +1,12 @@
 using Dapr.AspNetCore;
+using Dapr.Client;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using NightmareBot;
 using NightmareBot.Handlers;
+using NightmareBot.Models;
 using NightmareBot.Modules;
 using NightmareBot.Services;
 using OpenTelemetry.Resources;

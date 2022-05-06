@@ -57,7 +57,7 @@ public class ResultController : ControllerBase
             for (int ix = 0; ix < response.images.Length; ix++)
                 builder.WithButton(new ButtonBuilder().
                     WithStyle(ButtonStyle.Primary).
-                    WithCustomId(response.images[ix]).
+                    WithCustomId($"enhance|{response.id}|samples/{response.images[ix]}").
                     WithLabel($"Enhance {ix+1}"));
 
             await channel.SendMessageAsync(message, messageReference: messageReference, components: builder.Build());
@@ -70,6 +70,7 @@ public class ResultController : ControllerBase
         }
     }
 
+    
 
     [HttpGet("{path}/{filename}.png")]
     public async Task<ActionResult> Get(string path, string filename)

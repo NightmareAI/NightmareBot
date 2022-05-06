@@ -1,6 +1,8 @@
 ﻿using System.Reflection;
+using Dapr.Client;
 using Discord.Commands;
 using Discord.WebSocket;
+using NightmareBot.Models;
 
 namespace NightmareBot.Handlers;
 
@@ -19,8 +21,40 @@ public class CommandHandler
     public async Task InstallCommandsAsync(IServiceProvider serviceProvider)
     {
         _client.MessageReceived += HandleCommandAsync;
+        _client.ButtonExecuted += HandleButtonAsync;
         _serviceProvider = serviceProvider;
         await _commands.AddModulesAsync(assembly: Assembly.GetEntryAssembly(), services: serviceProvider);
+    }
+
+    private async Task HandleButtonAsync(SocketMessageComponent component)
+    {
+        var idParts = component.Data.CustomId.Split("|");
+        switch (idParts[0])
+        {
+            case "enhance":
+            {
+                var imageUrl = $"https://dumb.dev/nightmarebot-output/{idParts[1]}/{idParts[2]}";
+                var request = new PredictionRequest<SwinIRInput>()
+                {
+
+                    context = new DiscordContext
+                    {
+                        channel = component.ChannelId.ToString(), message = component.Message.Id.ToString(),
+                        user = component.User.Id.ToString()
+                    },
+                    id = Guid.NewGuid(),
+                    request_time = DateTime.UtcNow,
+                    input = new SwinIRInput
+                    {
+                        ImageUrls = new[] { imageUrl }
+                    }
+                };
+
+                using var daprClient = _serviceProvider.GetRequiredService<DaprClient>();
+                daprClient.PublishEventAsync("servicebus-pubsub", "request.swinir", request);
+                break;
+            }
+        }
     }
 
     private async Task HandleCommandAsync(SocketMessage messageParam)
