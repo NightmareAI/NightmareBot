@@ -29,7 +29,7 @@ public class ResultController : ControllerBase
         {
             // Retrieve request from state store by ID
             var request =
-                await daprClient.GetStateAsync<PredictionRequest<LatentDiffusionInput>>("request-state",
+            await daprClient.GetStateAsync<PredictionRequest<LatentDiffusionInput>>("statestore",
                     response.id.ToString());
 
             _logger.LogInformation(
