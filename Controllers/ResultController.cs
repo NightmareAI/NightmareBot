@@ -20,7 +20,7 @@ public class ResultController : ControllerBase
         _logger = logger;
     }
 
-    [Topic("pubsub", "response.latent-diffusion")]
+    [Topic("servicebus-pubsub", "response.latent-diffusion")]
     [Route("latent-diffusion")]
     [HttpPost]
     public async Task<ActionResult> LatentDiffusionResponse(ResponseModel response, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient) 
