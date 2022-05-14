@@ -1,3 +1,4 @@
+using System.Reflection;
 using Dapr.AspNetCore;
 using Dapr.Client;
 using Discord;
@@ -62,5 +63,4 @@ await client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("NIGHT
 await client.StartAsync();
 await client.SetGameAsync("the wind", null, ActivityType.Listening);
 await app.Services.GetRequiredService<CommandHandler>().InstallCommandsAsync(app.Services);
-
 app.Run();

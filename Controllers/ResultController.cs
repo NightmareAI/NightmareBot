@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Dapr;
 using Dapr.Client;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
 using NightmareBot.Models;
 
@@ -24,15 +25,18 @@ public class ResultController : ControllerBase
     [Route("swinir")]
     [HttpPost]
     public async Task<ActionResult> SwinIRResponse(ResponseModel response, [FromServices] DaprClient daprClient,
-        [FromServices] DiscordSocketClient discordClient)
+        [FromServices] DiscordSocketClient discordClient, [FromServices] InteractionService interactionService)
     {
         try
         {
+            await daprClient.GetStateAsync<PredictionRequest<SwinIRInput>>("statestore", response.id.ToString());
             if (!response.images.Any())
                 return Ok();
+            
             var channel_id = ulong.Parse(response.context.channel);
             var guild_id = ulong.Parse(response.context.guild);
             var message_id = ulong.Parse(response.context.message);
+            ulong.TryParse(response.context.interaction, out var interaction_id);
             var guild = discordClient.GetGuild(guild_id);
             var channel = guild.GetTextChannel(channel_id);
             var message = await channel.GetMessageAsync(message_id);
@@ -41,10 +45,10 @@ public class ResultController : ControllerBase
             foreach (var image in response.images)
                 messageText.AppendLine($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
 
-            var component = message.Components.FirstOrDefault() as SocketMessageComponent;
-            if (component != null)
-                await component.RespondAsync(message.ToString());
-            else
+            if (interaction_id > 0)
+            {
+            }
+            //else
                 await channel.SendMessageAsync(messageText.ToString(), messageReference: messageReference);
             return Ok();
         }

@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using Dapr.Client;
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.WebSocket;
 using NightmareBot.Models;
 
@@ -10,22 +11,25 @@ public class CommandHandler
 {
     private readonly DiscordSocketClient _client;
     private readonly CommandService _commands;
+    private readonly InteractionService _interactions;
     private IServiceProvider? _serviceProvider = null;
     private ILogger<CommandHandler> _logger;
 
-    public CommandHandler(DiscordSocketClient client, CommandService service)
+    public CommandHandler(DiscordSocketClient client, CommandService service, InteractionService interactionService)
     {
         _client = client;
         _commands = service;
+        _interactions = interactionService;
     }
 
     public async Task InstallCommandsAsync(IServiceProvider serviceProvider)
     {
         _client.MessageReceived += HandleCommandAsync;
-        _client.ButtonExecuted += HandleButtonAsync;
+        _client.ButtonExecuted += HandleButtonAsync; 
         _serviceProvider = serviceProvider;
         _logger = serviceProvider.GetRequiredService<ILogger<CommandHandler>>();
         await _commands.AddModulesAsync(assembly: Assembly.GetEntryAssembly(), services: serviceProvider);
+        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), serviceProvider);
     }
 
     private async Task HandleButtonAsync(SocketMessageComponent component)
@@ -43,7 +47,8 @@ public class CommandHandler
 
                         context = new DiscordContext
                         {
-                            channel = component.ChannelId.ToString(), message = component.Message.Id.ToString(),
+                            channel = component.ChannelId.ToString(), 
+                            message = component.Message.Id.ToString(),
                             user = component.User.Id.ToString(),
                             guild = (component.Channel as SocketGuildChannel).Guild.Id.ToString()
                         },
@@ -57,7 +62,8 @@ public class CommandHandler
 
                     using var daprClient = new DaprClientBuilder().Build();
                     await daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
-                    await component.DeferLoadingAsync();
+                    await daprClient.SaveStateAsync("statestore", request.id.ToString(), request);
+                    await component.DeferAsync();
                 }
                 catch (Exception ex)
                 {

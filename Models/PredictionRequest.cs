@@ -1,6 +1,8 @@
 ﻿using Discord.Commands;
 using Discord.WebSocket;
 using System.Text.Json.Serialization;
+using Discord;
+using Discord.Interactions;
 
 namespace NightmareBot.Models;
 
@@ -65,6 +67,16 @@ public class PredictionRequest<T> where T : IGeneratorInput
         this.context.channel = context.Channel.Id.ToString();
         this.context.user = context.User.Id.ToString();
         this.context.message = context.Message.Id.ToString();
+        this.input = input;
+    }
+    
+    public PredictionRequest(IInteractionContext context, T input, Guid id)
+    {
+        this.id = id;
+        this.context.guild = context.Guild.Id.ToString();
+        this.context.channel = context.Channel.Id.ToString();
+        this.context.user = context.User.Id.ToString();
+        this.context.interaction = context.Interaction.Id.ToString();
         this.input = input;
     }
 }
