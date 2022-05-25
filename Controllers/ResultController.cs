@@ -40,16 +40,20 @@ public class ResultController : ControllerBase
             var guild = discordClient.GetGuild(guild_id);
             var channel = guild.GetTextChannel(channel_id);
             var message = await channel.GetMessageAsync(message_id);
+            var embeds = new List<Embed>();
             var messageReference = new MessageReference(ulong.Parse(response.context.message), channel_id, guild_id);
             var messageText = new StringBuilder();
             foreach (var image in response.images)
-                messageText.AppendLine($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
-
+            {
+                var eb = new EmbedBuilder();
+                eb.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
+                embeds.Add(eb.Build());
+            }
             if (interaction_id > 0)
             {
             }
             //else
-                await channel.SendMessageAsync(messageText.ToString(), messageReference: messageReference);
+                await channel.SendMessageAsync(messageText.ToString(), embeds: embeds.ToArray(), messageReference: messageReference);
             return Ok();
         }
         catch (Exception ex)
@@ -87,8 +91,7 @@ public class ResultController : ControllerBase
             var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
 
             var message =
-                $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n" +
-                $"https://dumb.dev/nightmarebot-output/{response.id}/results.png\n";
+                $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n";
 
             request.sample_filenames = response.images;
             request.complete_time = DateTime.UtcNow;
@@ -100,7 +103,12 @@ public class ResultController : ControllerBase
                     WithCustomId($"enhance|{response.id}|samples/{response.images[ix]}").
                     WithLabel($"Enhance {ix+1}"));
 
-            await channel.SendMessageAsync(message, messageReference: messageReference, components: builder.Build());
+            var embed = new EmbedBuilder();
+            embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/results.png");
+
+
+
+            await channel.SendMessageAsync(message, embed: embed.Build(), messageReference: messageReference, components: builder.Build());
             return Ok();
         }
         catch (Exception ex)
