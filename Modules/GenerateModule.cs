@@ -1,8 +1,7 @@
-﻿using System.Net;
-using Dapr.Client;
+﻿using Dapr.Client;
 using Discord;
 using Discord.Commands;
-using Microsoft.AspNetCore.Mvc;
+using Discord.Interactions;
 using NightmareBot.Models;
 using NightmareBot.Services;
 
@@ -12,16 +11,35 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 {
     private readonly GenerateService _generateService;
     private readonly DaprClient _daprClient;
+    private readonly ILogger<GenerateModel> _logger;
+    private readonly InteractionService _handler;
 
-    public GenerateModel(GenerateService generateService, DaprClient daprClient)
+    public GenerateModel(GenerateService generateService, DaprClient daprClient, InteractionService handler)
     {
         _generateService = generateService;
         _daprClient = daprClient;
+        _handler = handler;
     } 
     
+    [Command("reg")]
+    [Discord.Commands.Summary("Registers guild commands")]
+    public async Task Register()
+    {
+        try
+        {
+            await _handler.RegisterCommandsToGuildAsync(Context.Guild.Id);
+        }
+        catch(Exception exception)
+        {
+            _logger.LogError(exception, exception.Message);
+        }
+
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));
+    }
+
     [Command("gen")]
-    [Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
-    public async Task GenerateAsync([Remainder] [Summary("The prediction text")] string text)
+    [Discord.Commands.Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
+    public async Task GenerateAsync([Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         if (Context.Message.Attachments.Any() || (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)) 
         {            
@@ -36,21 +54,22 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     }
 
     [Command("ldm")]
-    [Summary("Generates a nightmare using the latent diffusion model")]
-    public async Task LatentDiffusionAsync([Summary("The prediction text")] string text, [Summary("Latent diffusion settings")] LatentDiffusionInput input = default) 
+    [Discord.Commands.Summary("Generates a nightmare using the latent diffusion model")]
+    public async Task LatentDiffusionAsync([Discord.Commands.Summary("The prediction text")] string text, [Discord.Commands.Summary("Latent diffusion settings")] LatentDiffusionInput input = default) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
         if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompt))
             input.prompt = text;
         
-        _generateService.LatentDiffusionQueue.Enqueue(request);
+        //_generateService.LatentDiffusionQueue.Enqueue(request);
+        await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
     [Command("viz")]
-    [Summary("Deep music visualizer")]
-    public async Task DeepMusicVizAsync([Summary("Deep Music Settings")] DeepMusicInput input = default)
+    [Discord.Commands.Summary("Deep music visualizer")]
+    public async Task DeepMusicVizAsync([Discord.Commands.Summary("Deep Music Settings")] DeepMusicInput input = default)
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<DeepMusicInput>(Context, input, id);
@@ -69,13 +88,14 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         request.input.song = song.Url;
 
         _generateService.DeepMusicQueue.Enqueue(request);
+        Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
 
     }
 
     [Command("pixray")]
-    [Summary("Raw access to the Pixray engine")]
-    public async Task PixrayAsync([Summary("The prediction text")] string text, [Summary("Extra Pixray settings")] PixrayInput input) 
+    [Discord.Commands.Summary("Raw access to the Pixray engine")]
+    public async Task PixrayAsync([Discord.Commands.Summary("The prediction text")] string text, [Discord.Commands.Summary("Extra Pixray settings")] PixrayInput input) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<PixrayInput>(Context, input, id);
@@ -109,7 +129,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         }
         
-        _daprClient.PublishEventAsync("pubsub", "pixray_requests", request);
+        Enqueue(request);
         _generateService.PixrayRequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     } 
@@ -134,10 +154,10 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
 
         if (images.Any()) {
-
-            var request = new PredictionRequest<SwinIRInput>(Context, new SwinIRInput { ImageUrls = images.ToArray() }, id); 
-            _daprClient.PublishEventAsync("pubsub", "swinir_requests", request);
-            _generateService.SwinIRRequestQueue.Enqueue(request);
+            var input = new SwinIRInput { images = images.ToArray() };
+            var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
+            Enqueue(request);
+            //_generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
         }
     }
@@ -160,15 +180,15 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (video == null)
             await Context.Message.AddReactionAsync(new Emoji("❌"));
         
-
-        var request = new PredictionRequest<VRTInput>(Context, new VRTInput { video = video.Url }, id); 
-        _daprClient.PublishEventAsync("pubsub", "vrt_requests", request);
+        var input = new VRTInput { video = video.Url };
+        var request = new PredictionRequest<VRTInput>(Context, input, id); 
+        Enqueue(request);
         _generateService.VRTQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
     [Command("style")]
-    public async Task Generate4Async([Summary("Style tags")] string style, [Remainder][Summary("The prediction text")] string text)
+    public async Task Generate4Async([Discord.Commands.Summary("Style tags")] string style, [Remainder][Discord.Commands.Summary("The prediction text")] string text)
     {
         string styleTags = "";
         switch (style)
@@ -196,12 +216,13 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var seed = Random.Shared.NextInt64();
         var id = Guid.NewGuid();
         var request = new PredictionRequest<Laionidev4Input>(Context, new Laionidev4Input(text, styleTags, seed), id);
+        Enqueue(request);
         _generateService.Laionidev4RequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
     [Command("draw")]
-    public async Task DrawAsync([Summary("The drawer engine")] string drawer, [Remainder][Summary("The prompt")] string prompt) 
+    public async Task DrawAsync([Discord.Commands.Summary("The drawer engine")] string drawer, [Remainder][Discord.Commands.Summary("The prompt")] string prompt) 
     {
         switch (drawer)
         {
@@ -223,14 +244,15 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var id = Guid.NewGuid();
         var request = new PredictionRequest<PixrayInput>(Context, new PixrayInput { drawer = drawer, prompts = prompt, }, id);
         _generateService.PixrayRequestQueue.Enqueue(request);
+        Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
         
     }
     
     [Command("regen")]
-    [Summary("Generates a nightmare using the default model and a specific seed with higher settings.")]
-    public async Task RegenerateAsync([Summary("The seed")] long seed,
-        [Remainder] [Summary("The prediction text")] string text)
+    [Discord.Commands.Summary("Generates a nightmare using the default model and a specific seed with higher settings.")]
+    public async Task RegenerateAsync([Discord.Commands.Summary("The seed")] long seed,
+        [Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<Laionidev3Input>(Context, new Laionidev3Input(text, seed), id)
@@ -243,18 +265,25 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         };
         _generateService.Laionidev3RequestQueue.Enqueue(request);
+        Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
     [Command("clipdraw")]
-    [Summary("Generates a nightmare using the clipdraw model, which may suck.")]
-    public async Task ClipdrawAsync([Remainder] [Summary("The prediction text")] string text)
+    [Discord.Commands.Summary("Generates a nightmare using the clipdraw model, which may suck.")]
+    public async Task ClipdrawAsync([Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         /*
         var id = Guid.NewGuid();
         var request = new PredictionRequest<ClipDrawInput>(Context, new ClipDrawInput() { prompt = text }, id);
         _generateService.ClipdrawRequestQueue.Enqueue(request);*/
         await Context.Message.AddReactionAsync(new Emoji("❌"));
+    }
+
+    private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
+    {
+        await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
+        await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);
     }
     
 }

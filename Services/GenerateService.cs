@@ -36,45 +36,51 @@ public class GenerateService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = ScopeFactory.CreateScope();
             if (Laionidev3RequestQueue.TryDequeue(out var request))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLaionideV3(request, discordClient);
             }
 
             if (PixrayRequestQueue.TryDequeue(out var pixrayRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GeneratePixray(pixrayRequest, discordClient);
             }
 
             if (Laionidev4RequestQueue.TryDequeue(out var v4request))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLaionideV4(v4request, discordClient);
             }
 
             if (LatentDiffusionQueue.TryDequeue(out var ldmRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateLatentDiffusion(ldmRequest, discordClient);
             }
 
             if (DeepMusicQueue.TryDequeue(out var deepMusicRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.GenerateDeepMusicViz(deepMusicRequest, discordClient);
             }
 
             if (VRTQueue.TryDequeue(out var vrtRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.ProcessVRT(vrtRequest, discordClient);
             }
 
-            while (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
+            if (SwinIRRequestQueue.TryDequeue(out var swinirRequest))
             {
+                using var scope = ScopeFactory.CreateScope();
                 var discordClient = scope.ServiceProvider.GetRequiredService<DiscordSocketClient>();
                 await this.ProcessSwinIR(swinirRequest, discordClient);
             }
@@ -83,9 +89,11 @@ public class GenerateService : BackgroundService
     
     private async Task GenerateLaionideV3(PredictionRequest<Laionidev3Input> request, DiscordSocketClient client)
     {
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
 
         await client.SetGameAsync(request.input.prompt, null, ActivityType.Playing);
         
@@ -106,7 +114,7 @@ public class GenerateService : BackgroundService
         }
 
         var attachmentPath =
-            $"{Directory.GetCurrentDirectory()}/result/{request.Id}/upsample_predictions.png";
+            $"{Directory.GetCurrentDirectory()}/result/{request.id}/upsample_predictions.png";
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
         await channel.SendFileAsync(attachmentPath, $"> {request.input.prompt} (Seed: {request.input.seed})", messageReference: messageReference);
@@ -114,9 +122,11 @@ public class GenerateService : BackgroundService
 
     private async Task GenerateLaionideV4(PredictionRequest<Laionidev4Input> request, DiscordSocketClient client)
     {
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
 
         await client.SetGameAsync(request.input.prompt, null, ActivityType.Playing);
         
@@ -137,7 +147,7 @@ public class GenerateService : BackgroundService
         }
 
         var attachmentPath =
-            $"{Directory.GetCurrentDirectory()}/result/{request.Id}/sr_predictions.png";
+            $"{Directory.GetCurrentDirectory()}/result/{request.id}/sr_predictions.png";
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
         await channel.SendFileAsync(attachmentPath, $"> {request.input.prompt} (Seed: {request.input.seed})", messageReference: messageReference);
@@ -147,13 +157,15 @@ public class GenerateService : BackgroundService
     private async Task GeneratePixray(PredictionRequest<PixrayInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-        var attachmentPath = $"/home/palp/NightmareBot/result/{request.Id}";
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
+        var attachmentPath = $"/home/palp/NightmareBot/result/{request.id}";
         
         if (string.IsNullOrWhiteSpace(request.input.seed))
-            request.input.seed = request.Id.ToString();
+            request.input.seed = request.id.ToString();
         string config = string.Empty;
         try {
 
@@ -164,7 +176,7 @@ public class GenerateService : BackgroundService
                 using var httpClient = new HttpClient();
                 var imageData = await httpClient.GetByteArrayAsync(request.input.init_image);
                 await File.WriteAllBytesAsync($"{attachmentPath}/init_image.png", imageData);
-                request.input.init_image = $"http://localhost:49257/result/{request.Id}/init_image.png";
+                request.input.init_image = $"http://localhost:49257/result/{request.id}/init_image.png";
             }
 
             // create pixray config
@@ -209,6 +221,17 @@ public class GenerateService : BackgroundService
                     if (request.input.custom_loss.Contains("palette"))
                         writer.WriteLine($"palette_weight: {request.input.palette_weight}");
                 }
+
+                if (!string.IsNullOrWhiteSpace(request.input.image_prompts))
+                {
+                    writer.WriteLine($"image_prompts: {request.input.image_prompts}");
+                    if (request.input.image_prompt_weight.HasValue)
+                        writer.WriteLine($"image_prompt_weight: {request.input.image_prompt_weight}");
+                    writer.WriteLine($"image_prompt_shuffle: {request.input.image_prompt_shuffle}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.input.target_images))
+                    writer.WriteLine($"target_images: {request.input.target_images}");
                 config = writer.ToString();                
             }
             
@@ -270,14 +293,16 @@ public class GenerateService : BackgroundService
     public async Task GenerateLatentDiffusion(PredictionRequest<LatentDiffusionInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-        var outputPath = $"/home/palp/NightmareBot/result/{request.Id}";
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
+        var outputPath = $"/home/palp/NightmareBot/result/{request.id}";
         Directory.CreateDirectory(outputPath);
 
 
-        var args = $"--prompt \"{request.input.prompt}\" --ddim_steps {request.input.ddim_steps} --ddim_eta {request.input.ddim_eta} --n_iter {request.input.n_iter} --n_samples {request.input.n_samples} --scale {request.input.scale} --H {request.input.H} --W {request.input.W}";
+        var args = $"--prompt \"{request.input.prompt}\" --ddim_steps {request.input.ddim_steps} --ddim_eta {request.input.ddim_eta} --n_iter {request.input.n_iter} --n_samples {request.input.n_samples} --scale {request.input.scale} --H {request.input.height} --W {request.input.width}";
         if (request.input.plms)
             args += " --plms";        
 
@@ -329,10 +354,12 @@ public class GenerateService : BackgroundService
     public async Task GenerateDeepMusicViz(PredictionRequest<DeepMusicInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-        var outputPath = $"/var/www/html/result/{request.Id}";
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
+        var outputPath = $"/var/www/html/result/{request.id}";
         Directory.CreateDirectory(outputPath);
 
         // Download audio file
@@ -403,7 +430,7 @@ public class GenerateService : BackgroundService
 
 
         await client.SetGameAsync("the art critics", null, ActivityType.Listening);
-        var url = $"https://nightmarebot.com/result/{request.Id}/output.mp4";
+        var url = $"https://nightmarebot.com/result/{request.id}/output.mp4";
         var message = $"> {request.input.song}\n(deep-music-viz, {(DateTime.UtcNow - startTime).TotalSeconds} seconds)\n{url}";
 
         if (File.Exists($"{outputPath}/output.mp4"))
@@ -415,10 +442,12 @@ public class GenerateService : BackgroundService
     public async Task ProcessSwinIR(PredictionRequest<SwinIRInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-        var basePath = $"/home/palp/NightmareBot/enhance/{request.Id}";
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
+        var basePath = $"/home/palp/NightmareBot/enhance/{request.id}";
         var inputPath = basePath + "/lq";
         var outputPath = basePath + "/results";
         Directory.CreateDirectory(inputPath);
@@ -427,7 +456,7 @@ public class GenerateService : BackgroundService
         using var httpClient = new HttpClient();
 
         int ix = 0;
-        foreach (var url in request.input.ImageUrls) 
+        foreach (var url in request.input.images) 
         {
             var imageData = await httpClient.GetByteArrayAsync(url);
             string fileName = $"{ix++}.{url.Substring(url.Length -3)}";
@@ -479,10 +508,12 @@ public class GenerateService : BackgroundService
     public async Task ProcessVRT(PredictionRequest<VRTInput> request, DiscordSocketClient client)
     {
         var startTime = DateTime.UtcNow;
-        var guild = client.GetGuild(request.GuildId);
-        var channel = guild.GetTextChannel(request.ChannelId);
-        var messageReference = new MessageReference(request.MessageId, request.ChannelId, request.GuildId);
-        var basePath = $"/home/palp/NightmareBot/enhance/{request.Id}";
+        var guild_id = ulong.Parse(request.context.guild);
+        var guild = client.GetGuild(guild_id);
+        var channel_id = ulong.Parse(request.context.channel);
+        var channel = guild.GetTextChannel(channel_id);
+        var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
+        var basePath = $"/home/palp/NightmareBot/enhance/{request.id}";
         var inputPath = basePath + "/lq";
         var outputPath = basePath + "/results";
         Directory.CreateDirectory(inputPath);

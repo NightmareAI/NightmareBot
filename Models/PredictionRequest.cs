@@ -1,6 +1,8 @@
-﻿using System.Text.Json.Serialization;
-using Discord.Commands;
+﻿using Discord.Commands;
 using Discord.WebSocket;
+using System.Text.Json.Serialization;
+using Discord;
+using Discord.Interactions;
 
 namespace NightmareBot.Models;
 
@@ -9,26 +11,93 @@ public class PredictionRequest<T> where T : IGeneratorInput
     [JsonPropertyName("input")]
     public T input { get; set; }
 
-    [JsonPropertyName("output_file_prefix")]
-    public string output_file_prefix { get; set; }
+    [JsonPropertyName("context")]
+    public DiscordContext context { get; set; } = new DiscordContext();
+    
+    [JsonPropertyName("id")]
+    public Guid id { get; set; }
 
-    [JsonIgnore] public ulong GuildId { get; set; }
-    [JsonIgnore] public ulong ChannelId { get; set; }
+    [JsonPropertyName("sample_filenames")]
+    public string[] sample_filenames { get; set; } = new string[0];
 
-    [JsonIgnore] public ulong UserId { get; set; }
+    [JsonPropertyName("request_time")]
+    public DateTime request_time { get; set; } = DateTime.UtcNow;
+
+    [JsonPropertyName("start_time")]
+    public DateTime start_time { get; set; }
+
+    [JsonPropertyName("complete_time")]
+    public DateTime complete_time {get; set;}
+
+    // weird way to deal with json serialization issues
+    [JsonPropertyName("request_type")]
+    public string request_type { get { return _request_type; } set {} }
     
-    [JsonIgnore] public ulong MessageId { get; set; }
+    private string _request_type { get {
+        switch (input) {
+            case DeepMusicInput:
+                return "deep-music";
+            case Laionidev3Input:
+                return "laionide-v3";
+            case Laionidev4Input:
+                return "laionide-v4";
+            case LatentDiffusionInput:
+                return "latent-diffusion";
+            case PixrayInput:
+                return "pixray";
+            case SwinIRInput:
+                return "swinir";
+            case VRTInput:
+                return "vrt";
+            default:
+                return "unknown";
+        }
+    }
+    }
     
-    [JsonIgnore] public Guid Id { get; set; }
-    
+    public PredictionRequest()
+    {
+        
+    }
+
+    public PredictionRequest(SocketInteractionContext context, T input, Guid id)
+    {
+        this.id = id;
+        this.context.guild = context.Guild.Id.ToString();
+        this.context.channel = context.Channel.Id.ToString();
+        this.context.user = context.User.Id.ToString();
+        this.context.interaction = context.Interaction.Id.ToString();
+        this.context.token = context.Interaction.Token.ToString();
+        this.input = input;
+    }
+
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
-        this.Id = id;
-        this.GuildId = context.Guild.Id;
-        this.ChannelId = context.Channel.Id;
-        this.UserId = context.User.Id;
-        this.MessageId = context.Message.Id;
+        this.id = id;
+        this.context.guild = context.Guild.Id.ToString();
+        this.context.channel = context.Channel.Id.ToString();
+        this.context.user = context.User.Id.ToString();
+        this.context.message = context.Message.Id.ToString();
         this.input = input;
-        this.output_file_prefix = $"http://172.20.18.171:5224/Result/{id}/";
+    }
+    
+    public PredictionRequest(IInteractionContext context, T input, Guid id)
+    {
+        this.id = id;
+        this.context.guild = context.Guild.Id.ToString();
+        this.context.channel = context.Channel.Id.ToString();
+        this.context.user = context.User.Id.ToString();
+        this.context.interaction = context.Interaction.Id.ToString();
+        this.context.token = context.Interaction.Token.ToString();
+        this.input = input;
+    }
+
+    public PredictionRequest(SocketSlashCommand command, T input, Guid id)
+    {
+        this.id = id;
+        this.context.channel = command.Channel.Id.ToString();
+        this.context.user = command.User.Id.ToString();
+        this.context.token = command.Token;
+        this.input = input;
     }
 }
