@@ -21,7 +21,7 @@ public class ResultController : ControllerBase
         _logger = logger;
     }
 
-    [Topic("servicebus-pubsub", "response.swinir")]
+    [Topic("jetstream-pubsub", "response.swinir")]
     [Route("swinir")]
     [HttpPost]
     public async Task<ActionResult> SwinIRResponse(ResponseModel response, [FromServices] DaprClient daprClient,
@@ -29,19 +29,18 @@ public class ResultController : ControllerBase
     {
         try
         {
-            await daprClient.GetStateAsync<PredictionRequest<SwinIRInput>>("statestore", response.id.ToString());
+            await daprClient.GetStateAsync<PredictionRequest<SwinIRInput>>("cosmosdb", response.id.ToString());
             if (!response.images.Any())
                 return Ok();
             
-            var channel_id = ulong.Parse(response.context.channel);
-            var guild_id = ulong.Parse(response.context.guild);
-            var message_id = ulong.Parse(response.context.message);
+            ulong.TryParse(response.context.channel, out var channel_id);
+            ulong.TryParse(response.context.guild, out var guild_id);
+            ulong.TryParse(response.context.message, out var message_id);
+            ulong.TryParse(response.context.user, out var user_id);
             ulong.TryParse(response.context.interaction, out var interaction_id);
             var guild = discordClient.GetGuild(guild_id);
             var channel = guild.GetTextChannel(channel_id);
-            var message = await channel.GetMessageAsync(message_id);
             var embeds = new List<Embed>();
-            var messageReference = new MessageReference(ulong.Parse(response.context.message), channel_id, guild_id);
             var messageText = new StringBuilder();
             foreach (var image in response.images)
             {
@@ -49,11 +48,19 @@ public class ResultController : ControllerBase
                 eb.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
                 embeds.Add(eb.Build());
             }
-            if (interaction_id > 0)
+
+            if (message_id > 0)
             {
-            }
-            //else
+
+                var messageReference = new MessageReference(message_id, channel_id, guild_id);
                 await channel.SendMessageAsync(messageText.ToString(), embeds: embeds.ToArray(), messageReference: messageReference);
+            }
+            else
+            {
+                messageText.AppendLine(MentionUtils.MentionUser(user_id));
+                await channel.SendMessageAsync(messageText.ToString(), embeds: embeds.ToArray());
+            }
+
             return Ok();
         }
         catch (Exception ex)
@@ -63,52 +70,67 @@ public class ResultController : ControllerBase
         }
     }
     
-    [Topic("servicebus-pubsub", "response.latent-diffusion")]
+    [Topic("jetstream-pubsub", "response.latent-diffusion")]
     [Route("latent-diffusion")]
     [HttpPost]
-    public async Task<ActionResult> LatentDiffusionResponse(ResponseModel response, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient) 
+    public async Task<ActionResult> LatentDiffusionResponse(ResponseModel response, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient, [FromServices] InteractionService interactionService) 
     {
         try
         {
             // Retrieve request from state store by ID
             var request =
-            await daprClient.GetStateAsync<PredictionRequest<LatentDiffusionInput>>("statestore",
+            await daprClient.GetStateAsync<PredictionRequest<LatentDiffusionInput>>("cosmosdb",
                     response.id.ToString());
 
             _logger.LogInformation(
                 $"Context: Guild {request.context.guild} Channel {request.context.channel} Message {request.context.message} User {request.context.user}");
-            var guild_id = ulong.Parse(request.context.guild);
-            var guild = discordClient.GetGuild(guild_id);
-            if (guild == null)
-            {
-                _logger.LogWarning("Unable to get guild from discord");
-                return BadRequest();
-            }
-
-            var channel_id = ulong.Parse(request.context.channel);
-            var message_id = ulong.Parse(request.context.message);
-            var channel = guild.GetTextChannel(channel_id);
-            var messageReference = new MessageReference(ulong.Parse(request.context.message), channel_id, guild_id);
+            ulong.TryParse(request.context.guild, out var guild_id);
+            ulong.TryParse(request.context.channel, out var channel_id);
+            ulong.TryParse(request.context.message, out var message_id);
+            ulong.TryParse(request.context.user, out var user_id);
 
             var message =
                 $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n";
 
             request.sample_filenames = response.images;
             request.complete_time = DateTime.UtcNow;
-            await daprClient.SaveStateAsync("statestore", response.id.ToString(), request);
+            await daprClient.SaveStateAsync("cosmosdb", response.id.ToString(), request);
             var builder = new ComponentBuilder();
+            List <ActionRowBuilder> actions = new List <ActionRowBuilder>();
+            ActionRowBuilder enhanceButtons = new ActionRowBuilder();
+            ActionRowBuilder generateButtons = new ActionRowBuilder();
             for (int ix = 0; ix < response.images.Length; ix++)
-                builder.WithButton(new ButtonBuilder().
-                    WithStyle(ButtonStyle.Primary).
-                    WithCustomId($"enhance|{response.id}|samples/{response.images[ix]}").
-                    WithLabel($"Enhance {ix+1}"));
+            {
+                enhanceButtons.WithButton($"Enhance {ix + 1}", $"enhance:{response.id},samples/{response.images[ix]}", ButtonStyle.Primary);
+                generateButtons.WithButton($"Dream {ix + 1}", $"pixray_init:{response.id},samples/{response.images[ix]}", ButtonStyle.Secondary);
+            }
+            actions.Add(enhanceButtons);
+            actions.Add(generateButtons);
+            builder.WithRows(actions);
 
             var embed = new EmbedBuilder();
             embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/results.png");
 
+            var guild = discordClient.GetGuild(guild_id);
+            if (guild == null)
+            {
+                _logger.LogWarning("Unable to get guild from discord");
+                return BadRequest();
+            }
+            var channel = guild.GetTextChannel(channel_id);
+
+            if (message_id > 0)
+            {
+                var messageReference = new MessageReference(message_id, channel_id, guild_id);                    
+                await channel.SendMessageAsync(message, embed: embed.Build(), messageReference: messageReference, components: builder.Build());
+            }
+            else
+            {
+                message += MentionUtils.MentionUser(user_id);
+                await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
+            }
 
 
-            await channel.SendMessageAsync(message, embed: embed.Build(), messageReference: messageReference, components: builder.Build());
             return Ok();
         }
         catch (Exception ex)
@@ -118,7 +140,63 @@ public class ResultController : ControllerBase
         }
     }
 
-    
+    [Topic("jetstream-pubsub", "response.pixray")]
+    [Route("pixray")]
+    [HttpPost]
+    public async Task<ActionResult> PixrayResponse(ResponseModel response, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient, [FromServices] InteractionService interactionService)
+    {
+        try
+        {
+            var request = await daprClient.GetStateAsync<PredictionRequest<PixrayInput>>("cosmosdb", response.id.ToString());
+            ulong.TryParse(request.context.guild, out var guild_id);
+            ulong.TryParse(request.context.channel, out var channel_id);
+            ulong.TryParse(request.context.message, out var message_id);
+            ulong.TryParse(request.context.user, out var user_id);
+
+            var message =
+                $"```{request.input.settings}```\n(pixray, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n" +
+                $"https://dumb.dev/nightmarebot-output/{response.id}/steps/output.mp4\n";
+
+            request.sample_filenames = response.images;
+            request.complete_time = DateTime.UtcNow;
+            await daprClient.SaveStateAsync("cosmosdb", response.id.ToString(), request);
+
+
+            var embed = new EmbedBuilder();
+            embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/output.png");
+ 
+            var builder = new ComponentBuilder();
+            builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance:{response.id},output.png").WithLabel("Enhance"));
+
+            var guild = discordClient.GetGuild(guild_id);
+            if (guild == null)
+            {
+                _logger.LogWarning("Unable to get guild from discord");
+                return BadRequest();
+            }
+            var channel = guild.GetTextChannel(channel_id);
+
+            if (message_id > 0)
+            {
+                var messageReference = new MessageReference(message_id, channel_id, guild_id);
+                await channel.SendMessageAsync(message, embed: embed.Build(), messageReference: messageReference, components: builder.Build());
+            }
+            else
+            {
+                message += MentionUtils.MentionUser(user_id);
+                await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
+            }
+
+
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to respond");
+            return BadRequest();
+        }
+    }
+
 
     [HttpGet("{path}/{filename}.png")]
     public async Task<ActionResult> Get(string path, string filename)

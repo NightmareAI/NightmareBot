@@ -18,4 +18,7 @@ public class DiscordContext
     
     [JsonPropertyName("interaction")]
     public string? interaction { get; set; }
+
+    [JsonPropertyName("token")]
+    public string? token { get; set; }
 }

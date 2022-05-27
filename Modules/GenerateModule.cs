@@ -1,9 +1,7 @@
-﻿using System.Net;
-using Dapr.Client;
+﻿using Dapr.Client;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
-using Microsoft.AspNetCore.Mvc;
 using NightmareBot.Models;
 using NightmareBot.Services;
 
@@ -13,13 +11,32 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 {
     private readonly GenerateService _generateService;
     private readonly DaprClient _daprClient;
+    private readonly ILogger<GenerateModel> _logger;
+    private readonly InteractionService _handler;
 
-    public GenerateModel(GenerateService generateService, DaprClient daprClient)
+    public GenerateModel(GenerateService generateService, DaprClient daprClient, InteractionService handler)
     {
         _generateService = generateService;
         _daprClient = daprClient;
+        _handler = handler;
     } 
     
+    [Command("reg")]
+    [Discord.Commands.Summary("Registers guild commands")]
+    public async Task Register()
+    {
+        try
+        {
+            await _handler.RegisterCommandsToGuildAsync(Context.Guild.Id);
+        }
+        catch(Exception exception)
+        {
+            _logger.LogError(exception, exception.Message);
+        }
+
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));
+    }
+
     [Command("gen")]
     [Discord.Commands.Summary("Generates a nightmare using the default model (currently latent diffusion, or pixray if an image is supplied).")]
     public async Task GenerateAsync([Remainder] [Discord.Commands.Summary("The prediction text")] string text)
@@ -46,7 +63,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             input.prompt = text;
         
         //_generateService.LatentDiffusionQueue.Enqueue(request);
-        Enqueue(request);
+        await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
@@ -265,8 +282,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
     {
-        await _daprClient.PublishEventAsync("servicebus-pubsub", $"request.{request.request_type}", request);
-        await _daprClient.SaveStateAsync("statestore", request.id.ToString(), request);
+        await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
+        await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);
     }
     
 }

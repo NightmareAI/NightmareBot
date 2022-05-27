@@ -60,6 +60,17 @@ public class PredictionRequest<T> where T : IGeneratorInput
         
     }
 
+    public PredictionRequest(SocketInteractionContext context, T input, Guid id)
+    {
+        this.id = id;
+        this.context.guild = context.Guild.Id.ToString();
+        this.context.channel = context.Channel.Id.ToString();
+        this.context.user = context.User.Id.ToString();
+        this.context.interaction = context.Interaction.Id.ToString();
+        this.context.token = context.Interaction.Token.ToString();
+        this.input = input;
+    }
+
     public PredictionRequest(SocketCommandContext context, T input, Guid id)
     {
         this.id = id;
@@ -77,6 +88,16 @@ public class PredictionRequest<T> where T : IGeneratorInput
         this.context.channel = context.Channel.Id.ToString();
         this.context.user = context.User.Id.ToString();
         this.context.interaction = context.Interaction.Id.ToString();
+        this.context.token = context.Interaction.Token.ToString();
+        this.input = input;
+    }
+
+    public PredictionRequest(SocketSlashCommand command, T input, Guid id)
+    {
+        this.id = id;
+        this.context.channel = command.Channel.Id.ToString();
+        this.context.user = command.User.Id.ToString();
+        this.context.token = command.Token;
         this.input = input;
     }
 }

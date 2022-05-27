@@ -9,5 +9,5 @@ public class ResponseModel
     [JsonPropertyName("context")]
     public DiscordContext context {get; set;}
     [JsonPropertyName("images")]
-    public string[] images {get; set;}
+    public string[]? images {get; set;}
 }
