@@ -5,6 +5,7 @@ using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
+using LinqToTwitter.OAuth;
 using NightmareBot;
 using NightmareBot.Handlers;
 using NightmareBot.Models;
@@ -36,6 +37,20 @@ builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
 builder.Services.AddSingleton<GenerateService>();
 //builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
+
+// Twitter
+var authorizer = new SingleUserAuthorizer
+{
+    CredentialStore = new SingleUserInMemoryCredentialStore
+    {
+        ConsumerKey = Environment.GetEnvironmentVariable("NIGHTMAREBOT_TWITTER_KEY"),
+        ConsumerSecret = Environment.GetEnvironmentVariable("NIGHTMAREBOT_TWITTER_SECRET"),
+        AccessToken = Environment.GetEnvironmentVariable("NIGHTMAREBOT_TWITTER_ACCESS_TOKEN"),
+        AccessTokenSecret = Environment.GetEnvironmentVariable("NIGHTMAREBOT_TWITTER_ACCESS_TOKEN_SECRET")
+    }
+};
+builder.Services.AddSingleton(x => new LinqToTwitter.TwitterContext(authorizer));
+
 
 var app = builder.Build();
 

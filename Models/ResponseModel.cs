@@ -10,4 +10,7 @@ public class ResponseModel
     public DiscordContext context {get; set;}
     [JsonPropertyName("images")]
     public string[]? images {get; set;}
+
+    [JsonPropertyName("error")]
+    public string? error {get; set;}
 }

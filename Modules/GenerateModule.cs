@@ -61,7 +61,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
         if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompt))
             input.prompt = text;
-        
+
+        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompt);
         //_generateService.LatentDiffusionQueue.Enqueue(request);
         await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
@@ -88,7 +89,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         request.input.song = song.Url;
 
         _generateService.DeepMusicQueue.Enqueue(request);
-        Enqueue(request);
+        await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
 
     }
@@ -128,8 +129,9 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
                 request.input.size = new int[] { (int)width, (int)height };
             }
         }
-        
-        Enqueue(request);
+
+        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompts);
+        await Enqueue(request);
         _generateService.PixrayRequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     } 
@@ -156,7 +158,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (images.Any()) {
             var input = new SwinIRInput { images = images.ToArray() };
             var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
-            Enqueue(request);
+            await Enqueue(request);
             //_generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
         }

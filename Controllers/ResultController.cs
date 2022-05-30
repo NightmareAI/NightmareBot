@@ -29,7 +29,7 @@ public class ResultController : ControllerBase
     {
         try
         {
-            await daprClient.GetStateAsync<PredictionRequest<SwinIRInput>>("cosmosdb", response.id.ToString());
+            var prompt = await daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{response.id}");
             if (!response.images.Any())
                 return Ok();
             
@@ -42,24 +42,32 @@ public class ResultController : ControllerBase
             var channel = guild.GetTextChannel(channel_id);
             var embeds = new List<Embed>();
             var messageText = new StringBuilder();
+            if (!string.IsNullOrEmpty(prompt))
+                messageText.AppendLine($"> {prompt}");
+            var builder = new ComponentBuilder();
+            int ix = 1;
+
+            if (!string.IsNullOrEmpty(response.error))
+            {
+                messageText.AppendLine($"Failed due to error: {response.error}");
+                messageText.AppendLine(MentionUtils.MentionUser(user_id));
+                await channel.SendMessageAsync(messageText.ToString());
+                return Ok();
+            }
+
             foreach (var image in response.images)
             {
                 var eb = new EmbedBuilder();
                 eb.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/{image}");
                 embeds.Add(eb.Build());
+                string label = "Tweet";
+                if (response.images.Length > 1)
+                    label += $" {ix++}";
+                builder.WithButton(label, $"tweet:{response.id},{image}", ButtonStyle.Success);
             }
 
-            if (message_id > 0)
-            {
-
-                var messageReference = new MessageReference(message_id, channel_id, guild_id);
-                await channel.SendMessageAsync(messageText.ToString(), embeds: embeds.ToArray(), messageReference: messageReference);
-            }
-            else
-            {
-                messageText.AppendLine(MentionUtils.MentionUser(user_id));
-                await channel.SendMessageAsync(messageText.ToString(), embeds: embeds.ToArray());
-            }
+            messageText.AppendLine(MentionUtils.MentionUser(user_id));
+            await channel.SendMessageAsync(messageText.ToString(), embeds: embeds.ToArray(), components: builder.Build());
 
             return Ok();
         }
@@ -92,6 +100,23 @@ public class ResultController : ControllerBase
             var message =
                 $"> {request.input.prompt}\n(latent-diffusion, {(DateTime.UtcNow - request.request_time).TotalSeconds} seconds end to end)\n";
 
+            var guild = discordClient.GetGuild(guild_id);
+            if (guild == null)
+            {
+                _logger.LogWarning("Unable to get guild from discord");
+                return BadRequest();
+            }
+            var channel = guild.GetTextChannel(channel_id);
+
+
+            if (!string.IsNullOrEmpty(response.error))
+            {
+                message += $"Failed due to error: {response.error}\n";
+                message +=  MentionUtils.MentionUser(user_id);
+                await channel.SendMessageAsync(message);
+                return Ok();
+            }
+
             request.sample_filenames = response.images;
             request.complete_time = DateTime.UtcNow;
             await daprClient.SaveStateAsync("cosmosdb", response.id.ToString(), request);
@@ -111,24 +136,8 @@ public class ResultController : ControllerBase
             var embed = new EmbedBuilder();
             embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{response.id}/results.png");
 
-            var guild = discordClient.GetGuild(guild_id);
-            if (guild == null)
-            {
-                _logger.LogWarning("Unable to get guild from discord");
-                return BadRequest();
-            }
-            var channel = guild.GetTextChannel(channel_id);
-
-            if (message_id > 0)
-            {
-                var messageReference = new MessageReference(message_id, channel_id, guild_id);                    
-                await channel.SendMessageAsync(message, embed: embed.Build(), messageReference: messageReference, components: builder.Build());
-            }
-            else
-            {
-                message += MentionUtils.MentionUser(user_id);
-                await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
-            }
+            message += MentionUtils.MentionUser(user_id);
+            await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
 
 
             return Ok();
@@ -167,6 +176,7 @@ public class ResultController : ControllerBase
  
             var builder = new ComponentBuilder();
             builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance:{response.id},output.png").WithLabel("Enhance"));
+            builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{response.id},output.png").WithLabel("Dream"));
 
             var guild = discordClient.GetGuild(guild_id);
             if (guild == null)
@@ -176,16 +186,17 @@ public class ResultController : ControllerBase
             }
             var channel = guild.GetTextChannel(channel_id);
 
-            if (message_id > 0)
+            if (!string.IsNullOrEmpty(response.error))
             {
-                var messageReference = new MessageReference(message_id, channel_id, guild_id);
-                await channel.SendMessageAsync(message, embed: embed.Build(), messageReference: messageReference, components: builder.Build());
-            }
-            else
-            {
+                message += $"Failed due to error: {response.error}\n";
                 message += MentionUtils.MentionUser(user_id);
-                await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
+                await channel.SendMessageAsync(message);
+                return Ok();
             }
+
+
+            message += MentionUtils.MentionUser(user_id);
+            await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
 
 
             return Ok();
