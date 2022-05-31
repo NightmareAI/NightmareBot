@@ -24,10 +24,10 @@ public class PredictionRequest<T> where T : IGeneratorInput
     public DateTime request_time { get; set; } = DateTime.UtcNow;
 
     [JsonPropertyName("start_time")]
-    public DateTime start_time { get; set; }
+    public DateTime? start_time { get; set; } = null;
 
     [JsonPropertyName("complete_time")]
-    public DateTime complete_time {get; set;}
+    public DateTime? complete_time { get; set; } = null;
 
     // weird way to deal with json serialization issues
     [JsonPropertyName("request_type")]

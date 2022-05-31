@@ -157,6 +157,7 @@ public class ResultController : ControllerBase
         try
         {
             var request = await daprClient.GetStateAsync<PredictionRequest<PixrayInput>>("cosmosdb", response.id.ToString());
+            
             ulong.TryParse(request.context.guild, out var guild_id);
             ulong.TryParse(request.context.channel, out var channel_id);
             ulong.TryParse(request.context.message, out var message_id);

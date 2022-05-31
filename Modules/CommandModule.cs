@@ -3,6 +3,7 @@ using Discord;
 using Discord.Interactions;
 using LinqToTwitter;
 using LinqToTwitter.Common;
+using Minio;
 using NightmareBot.Handlers;
 using NightmareBot.Modals;
 using NightmareBot.Models;
@@ -15,8 +16,9 @@ namespace NightmareBot.Modules
         private readonly CommandHandler _handler;
         private readonly ILogger<CommandModule> _logger;
         private readonly TwitterContext _twitter;
+        private readonly MinioClient _minioClient;
 
-        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; }
+        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; }
 
         [SlashCommand("pixray", "Advanced access to pixray options")]
         public async Task PixrayAsync(string prompt)
@@ -115,6 +117,8 @@ namespace NightmareBot.Modules
                 input.drawer = modal.Drawer;
             input.settings = input.config;
 
+            var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithFileName($"{id}/input.yaml").WithObject(input.settings);
+            await _minioClient.PutObjectAsync(putObjectArgs);
             await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompts);
             await Enqueue(request);
             await RespondAsync($"Queued `pixray` dream\n ```{input.settings}```", ephemeral: true);
@@ -246,6 +250,7 @@ namespace NightmareBot.Modules
 
         private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
         {
+            await _daprClient.SaveStateAsync("cosmosdb", $"context-{request.id}", request.context);
             await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
             await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);
         }

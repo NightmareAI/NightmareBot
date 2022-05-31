@@ -7,7 +7,7 @@ public class ResponseModel
     [JsonPropertyName("id")]
     public Guid id {get; set;}
     [JsonPropertyName("context")]
-    public DiscordContext context {get; set;}
+    public DiscordContext? context {get; set;}
     [JsonPropertyName("images")]
     public string[]? images {get; set;}
 

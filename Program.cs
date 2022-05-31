@@ -51,6 +51,11 @@ var authorizer = new SingleUserAuthorizer
 };
 builder.Services.AddSingleton(x => new LinqToTwitter.TwitterContext(authorizer));
 
+// Minio
+builder.Services.AddSingleton(x => new Minio.MinioClient().
+    WithCredentials(Environment.GetEnvironmentVariable("NIGHTMAREBOT_MINIO_KEY"), Environment.GetEnvironmentVariable("NIGHTMAREBOT_MINIO_SECRET")).
+    WithEndpoint("dumb.dev")
+    .Build());
 
 var app = builder.Build();
 
