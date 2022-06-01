@@ -149,6 +149,13 @@ public class ResultController : ControllerBase
         }
     }
 
+    [Route("pixray/{id}")]
+    [HttpPost]
+    public async Task<ActionResult> PixraySimpleResponse(Guid id, [FromServices] DaprClient daprClient, [FromServices] DiscordSocketClient discordClient, [FromServices] InteractionService interactionService)
+    {
+        return await PixrayResponse(new ResponseModel { id = id }, daprClient, discordClient, interactionService);
+    }
+
     [Topic("jetstream-pubsub", "response.pixray")]
     [Route("pixray")]
     [HttpPost]

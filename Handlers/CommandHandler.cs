@@ -3,6 +3,7 @@ using Dapr.Client;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
+using NightmareBot.Common;
 using NightmareBot.Models;
 
 namespace NightmareBot.Handlers;

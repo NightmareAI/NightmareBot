@@ -1,3 +1,4 @@
+using NightmareBot.Common;
 using System.Text.Json.Serialization;
 
 namespace NightmareBot.Models;

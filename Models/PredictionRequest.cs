@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using System.Text.Json.Serialization;
 using Discord;
 using Discord.Interactions;
+using NightmareBot.Common;
 
 namespace NightmareBot.Models;
 

@@ -7,6 +7,7 @@ using Minio;
 using NightmareBot.Handlers;
 using NightmareBot.Modals;
 using NightmareBot.Models;
+using System.Text;
 
 namespace NightmareBot.Modules
 {
@@ -117,8 +118,18 @@ namespace NightmareBot.Modules
                 input.drawer = modal.Drawer;
             input.settings = input.config;
 
-            var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithFileName($"{id}/input.yaml").WithObject(input.settings);
+            var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(input.prompts);
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/input.yaml").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/yaml");
             await _minioClient.PutObjectAsync(putObjectArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
             await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompts);
             await Enqueue(request);
             await RespondAsync($"Queued `pixray` dream\n ```{input.settings}```", ephemeral: true);
@@ -173,6 +184,21 @@ namespace NightmareBot.Modules
                 var imageUrl = $"https://dumb.dev/nightmarebot-output/{id}/{image}";
                 var request = new PredictionRequest<SwinIRInput>(Context, new SwinIRInput { images = new[] { imageUrl } }, Guid.NewGuid());
                 var prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
+                var httpClient = new HttpClient();
+                var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+
+                var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));                
+                var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
+                var promptBytes = Encoding.UTF8.GetBytes(prompt.ToString());
+                var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+                await _minioClient.PutObjectAsync(putContextArgs);
+                var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+                await _minioClient.PutObjectAsync(idArgs);
+                var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+                await _minioClient.PutObjectAsync(promptArgs);
+                var imageArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
+                await _minioClient.PutObjectAsync(imageArgs);
+
                 await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{request.id}", prompt);
                 await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
                 await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);
