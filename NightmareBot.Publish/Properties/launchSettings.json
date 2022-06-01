@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "NightmareBot.Publish": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}
