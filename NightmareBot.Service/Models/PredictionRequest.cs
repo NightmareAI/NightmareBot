@@ -34,26 +34,34 @@ public class PredictionRequest<T> where T : IGeneratorInput
     [JsonPropertyName("request_type")]
     public string request_type { get { return _request_type; } set {} }
     
-    private string _request_type { get {
-        switch (input) {
-            case DeepMusicInput:
-                return "deep-music";
-            case Laionidev3Input:
-                return "laionide-v3";
-            case Laionidev4Input:
-                return "laionide-v4";
-            case LatentDiffusionInput:
-                return "latent-diffusion";
-            case PixrayInput:
-                return "pixray";
-            case SwinIRInput:
-                return "swinir";
-            case VRTInput:
-                return "vrt";
-            default:
-                return "unknown";
+    private string _request_type
+    {
+        get
+        {
+            switch (input)
+            {
+                case DeepMusicInput:
+                    return "deep-music";
+                case Laionidev3Input:
+                    return "laionide-v3";
+                case Laionidev4Input:
+                    return "laionide-v4";
+                case LatentDiffusionInput:
+                    return "latent-diffusion";
+                case PixrayInput:
+                    return "pixray";
+                case SwinIRInput:
+                    return "swinir";
+                case EsrganInput:
+                    return "esrgan";
+                case VRTInput:
+                    return "vrt";
+                case MajestyDiffusionInput:
+                    return "majesty-diffusion";
+                default:
+                    return "unknown";
+            }
         }
-    }
     }
     
     public PredictionRequest()

@@ -28,7 +28,9 @@ if (Directory.Exists("/result/pixray"))
 
     var builder = new ComponentBuilder();
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance:{id},output.png").WithLabel("Enhance"));
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{id},output.png").WithLabel("Dream"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance-face:{id},output.png").WithLabel("Enhance+Face"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},output.png").WithLabel("Dream"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray-init:{id},output.png").WithLabel("Pixray"));
 
     var guild = await discord.GetGuildAsync(guild_id);
     if (guild == null)
@@ -60,6 +62,128 @@ else if (Directory.Exists("/result/swinir"))
 
     var builder = new ComponentBuilder();
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Danger).WithCustomId($"tweet:{id},output.png").WithLabel("Tweet"));
+
+    var guild = await discord.GetGuildAsync(guild_id);
+    if (guild == null)
+    {
+        Console.WriteLine("Unable to get guild from discord");
+        return;
+    }
+
+    var channel = await guild.GetTextChannelAsync(channel_id);
+    message += MentionUtils.MentionUser(user_id);
+    await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
+
+}
+else if (Directory.Exists("/result/majesty"))
+{
+    var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/tmp/majesty/context.json"));
+    var prompt = File.ReadAllText("/tmp/majesty/prompt.txt");
+    var id = File.ReadAllText("/tmp/majesty/id.txt");
+
+    var message =
+    $"> {prompt}\n";
+
+    ulong.TryParse(context.guild, out var guild_id);
+    ulong.TryParse(context.channel, out var channel_id);
+    ulong.TryParse(context.message, out var message_id);
+    ulong.TryParse(context.user, out var user_id);
+
+    var images = Directory.GetFiles("/result/majesty", "*.png");
+    var filename = Path.GetFileName(images[0]);
+
+    var builder = new ComponentBuilder();
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance:{id},{filename}").WithLabel("Enhance"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance-face:{id},{filename}").WithLabel("Enhance+Face"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},{filename}").WithLabel("Dream"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{id},{filename}").WithLabel("Pixray"));
+
+
+    var guild = await discord.GetGuildAsync(guild_id);
+    if (guild == null)
+    {
+        Console.WriteLine("Unable to get guild from discord");
+        return;
+    }
+
+    var channel = await guild.GetTextChannelAsync(channel_id);
+    message += MentionUtils.MentionUser(user_id);
+    await channel.SendFileAsync(images[0], message, components: builder.Build());
+}
+else if (Directory.Exists("/result/latent-diffusion"))
+{
+    var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/input/context.json"));
+    var prompt = File.ReadAllText("/input/prompt.txt");
+    var id = File.ReadAllText("/input/id.txt");
+
+    var message =
+    $"> {prompt}\n";
+
+    var gridImage = Directory.GetFiles("/result/latent-diffusion/", "*.png").First();
+
+    var images = Directory.GetFiles("/result/latent-diffusion/samples/", "*.png");
+
+    var builder = new ComponentBuilder();
+    List<ActionRowBuilder> actions = new List<ActionRowBuilder>();
+    ActionRowBuilder enhanceButtons = new ActionRowBuilder();
+    ActionRowBuilder enhanceFaceButtons = new ActionRowBuilder();
+    ActionRowBuilder generateButtons = new ActionRowBuilder();
+    ActionRowBuilder pixrayButtons = new ActionRowBuilder();
+    for (int ix = 0; ix < images.Length; ix++)
+    {
+        var filename = Path.GetFileName(images[ix]);
+        enhanceButtons.WithButton($"Enhance {ix + 1}", $"enhance:{id},samples/{filename}", ButtonStyle.Primary);
+        enhanceFaceButtons.WithButton($"Enhance+Face {ix + 1}", $"enhance-face:{id},samples/{filename}", ButtonStyle.Primary);
+        generateButtons.WithButton($"Dream {ix + 1}", $"dream:{id},samples/{filename}", ButtonStyle.Secondary);
+        pixrayButtons.WithButton($"Pixray {ix + 1}", $"pixray_init:{id},samples/{filename}", ButtonStyle.Secondary);
+    }
+    actions.Add(enhanceButtons);
+    actions.Add(enhanceFaceButtons);
+    actions.Add(generateButtons);
+    actions.Add(pixrayButtons);
+    builder.WithRows(actions);
+
+    var embed = new EmbedBuilder();
+    embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{Path.GetFileName(gridImage)}");
+
+    ulong.TryParse(context.guild, out var guild_id);
+    ulong.TryParse(context.channel, out var channel_id);
+    ulong.TryParse(context.message, out var message_id);
+    ulong.TryParse(context.user, out var user_id);
+
+    var guild = await discord.GetGuildAsync(guild_id);
+    if (guild == null)
+    {
+        Console.WriteLine("Unable to get guild from discord");
+        return;
+    }
+    var channel = await guild.GetTextChannelAsync(channel_id);
+
+    message += MentionUtils.MentionUser(user_id);
+    await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
+}
+else if (Directory.Exists("/result/enhance"))
+{
+    var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/input/context.json"));
+    var prompt = File.ReadAllText("/input/prompt.txt");
+    var id = File.ReadAllText("/input/id.txt");
+
+    ulong.TryParse(context.guild, out var guild_id);
+    ulong.TryParse(context.channel, out var channel_id);
+    ulong.TryParse(context.message, out var message_id);
+    ulong.TryParse(context.user, out var user_id);
+
+    var message =
+        $"> {prompt}\n";
+
+    var file = Path.GetFileName(Directory.GetFiles("/result/enhance").First());
+
+
+    var embed = new EmbedBuilder();
+    embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{file}");
+
+    var builder = new ComponentBuilder();
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Danger).WithCustomId($"tweet:{id},{file}").WithLabel("Tweet"));
 
     var guild = await discord.GetGuildAsync(guild_id);
     if (guild == null)

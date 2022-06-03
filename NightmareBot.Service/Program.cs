@@ -11,6 +11,7 @@ using NightmareBot.Handlers;
 using NightmareBot.Models;
 using NightmareBot.Modules;
 using NightmareBot.Services;
+using OpenAI;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
@@ -36,6 +37,7 @@ builder.Services.AddSingleton(x => new InteractionService(x.GetRequiredService<D
 builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
 builder.Services.AddSingleton<GenerateService>();
+builder.Services.AddSingleton(x => new OpenAIClient(OpenAIAuthentication.LoadFromEnv()));
 //builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
 
 // Twitter

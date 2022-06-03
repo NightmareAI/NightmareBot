@@ -41,7 +41,7 @@ public class CommandHandler
 
     private async Task ReadyAsync()
     {
-        await _interactions.AddCommandsGloballyAsync();
+        await _interactions.AddCommandsGloballyAsync(true);
     }
 
     private async Task HandleInteraction(SocketInteraction interaction)
@@ -61,7 +61,7 @@ public class CommandHandler
                         break;
                 }
                 _logger.LogError($"Failed to queue: {result.Error}: {result.ErrorReason}");
-                await interaction.RespondAsync($"Failed to queue: {result.ErrorReason}");
+                await interaction.GetOriginalResponseAsync().ContinueWith(async (msg) => { await msg.Result.ModifyAsync(p => p.Content = $"Failed to queue: {result.ErrorReason}"); });
             }
         }
         catch (Exception ex)

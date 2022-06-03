@@ -124,13 +124,16 @@ public class ResultController : ControllerBase
             List <ActionRowBuilder> actions = new List <ActionRowBuilder>();
             ActionRowBuilder enhanceButtons = new ActionRowBuilder();
             ActionRowBuilder generateButtons = new ActionRowBuilder();
+            ActionRowBuilder pixrayButtons = new ActionRowBuilder();
             for (int ix = 0; ix < response.images.Length; ix++)
             {
                 enhanceButtons.WithButton($"Enhance {ix + 1}", $"enhance:{response.id},samples/{response.images[ix]}", ButtonStyle.Primary);
-                generateButtons.WithButton($"Dream {ix + 1}", $"pixray_init:{response.id},samples/{response.images[ix]}", ButtonStyle.Secondary);
+                generateButtons.WithButton($"Dream {ix + 1}", $"dream:{response.id},samples/{response.images[ix]}", ButtonStyle.Secondary);
+                pixrayButtons.WithButton($"Pixray {ix + 1}", $"pixray_init:{response.id},samples/{response.images[ix]}", ButtonStyle.Secondary);
             }
             actions.Add(enhanceButtons);
             actions.Add(generateButtons);
+            actions.Add(pixrayButtons);
             builder.WithRows(actions);
 
             var embed = new EmbedBuilder();
