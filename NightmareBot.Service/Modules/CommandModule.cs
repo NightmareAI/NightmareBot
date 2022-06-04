@@ -1,6 +1,7 @@
 ﻿using Dapr.Client;
 using Discord;
 using Discord.Interactions;
+using SixLabors.ImageSharp;
 using LinqToTwitter;
 using LinqToTwitter.Common;
 using Minio;
@@ -9,6 +10,7 @@ using NightmareBot.Modals;
 using NightmareBot.Models;
 using OpenAI;
 using System.Text;
+using SixLabors.ImageSharp.Processing;
 
 namespace NightmareBot.Modules
 {
@@ -27,7 +29,7 @@ namespace NightmareBot.Modules
         public async Task GptDreamAsync(string prompt)
         {
             await DeferAsync(ephemeral: true);
-            var gptPrompt = $"Describe an AI generated artwork with the title \"{prompt}\":\n\n";
+            var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
             var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
             var newPrompt = generated.Completions.First().Text.Trim();
 
@@ -51,7 +53,7 @@ namespace NightmareBot.Modules
             await _minioClient.PutObjectAsync(putContextArgs);
             var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(promptArgs);
-            var gptPromptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            var gptPromptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(gptPromptArgs);
 
             var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
@@ -262,10 +264,13 @@ namespace NightmareBot.Modules
                 input.latent_negatives = modal.NegativePrompt.Split('|', StringSplitOptions.TrimEntries & StringSplitOptions.RemoveEmptyEntries);
             if (!string.IsNullOrWhiteSpace(modal.InitImage))
             {
+                /*
                 input.init_image = modal.InitImage;
-                input.init_scale = 0;
-                input.init_brightness = 0.5f;
+                input.init_scale = 800;
+                input.init_brightness = 0.0f;
                 input.init_noise = 0.8f;
+                */
+                input.image_prompts = new[] { modal.InitImage };
             }
 
             var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
@@ -297,6 +302,17 @@ namespace NightmareBot.Modules
                 var request = new PredictionRequest<EsrganInput>(Context, new EsrganInput { images = new[] { imageUrl }, face_enhance = true, outscale = 8 }, Guid.NewGuid());
                 var prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
                 var httpClient = new HttpClient();
+
+                try
+                {
+                    await _minioClient.GetObjectAsync(new GetObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithCallbackStream(s => { prompt = new StreamReader(s).ReadToEnd(); }));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
+                }
+
+
                 var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
 
                 var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));                
@@ -332,7 +348,15 @@ namespace NightmareBot.Modules
                 var request = new PredictionRequest<SwinIRInput>(Context, new SwinIRInput { images = new[] { imageUrl } }, Guid.NewGuid());
                 var prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
                 var httpClient = new HttpClient();
-                var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+                var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);                
+                try
+                {
+                    await _minioClient.GetObjectAsync(new GetObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithCallbackStream(s => { prompt = new StreamReader(s).ReadToEnd(); }));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
+                }
 
                 var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));                
                 var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
@@ -406,21 +430,43 @@ namespace NightmareBot.Modules
             }
         }
         [ComponentInteraction("tweet:*,*")]
-        private async Task TweetAsync(string id, string image)
+        private async Task TweetAsync(string id, string file)
         {
+            await DeferAsync();
+            var message = await GetOriginalResponseAsync();
+
             try
             {
-                var prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
-                var imageUrl = $"https://dumb.dev/nightmarebot-output/{id}/{image}";
+                string prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
+                var imageUrl = $"https://dumb.dev/nightmarebot-output/{id}/{file}";
                 using var httpClient = new HttpClient();
                 var imageData = await httpClient.GetByteArrayAsync(imageUrl);
 
+                while (imageData.Length > 5 * 1024 * 1024)
+                {
+                    var image = SixLabors.ImageSharp.Image.Load(imageData);
+                    var newHeight = image.Height / 2;
+                    var newWidth = image.Width / 2;
+                    image.Mutate(o => o.Resize(newWidth, newHeight));
+                    using var stream = new MemoryStream();
+                    await image.SaveAsPngAsync(stream);
+                    imageData = stream.ToArray();
+                }
 
+                var promptArgs = new GetObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithCallbackStream(s => { prompt = new StreamReader(s).ReadToEnd(); });
+                try
+                {
+                    await _minioClient.GetObjectAsync(promptArgs);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
+                }
                 var upload = await _twitter.UploadMediaAsync(imageData, "image/png", "TweetImage");
                 if (upload == null || upload.MediaID == 0)
                 {
                     _logger.LogWarning("Twitter upload failed");
-                    await RespondAsync("Twitter upload failed", ephemeral: true);
+                    await message.ReplyAsync("Twitter upload failed");
                 } 
                 else
                 {                    
@@ -428,18 +474,18 @@ namespace NightmareBot.Modules
                     if (tweet == null)
                     {
                         _logger.LogWarning("Failed to tweet");
-                        await RespondAsync("Failed to tweet", ephemeral: true);
+                        await message.ReplyAsync("Twitter upload failed");
                     }
                     else
                     {
-                        await RespondAsync($"https://twitter.com/NightmareBotAI/status/{tweet.ID}");
+                        await message.ReplyAsync($"https://twitter.com/NightmareBotAI/status/{tweet.ID}");
                     }
                 }
             }
             catch (TwitterQueryException ex)
             {
                 _logger.LogError(ex, $"Error tweeting: {ex.ReasonPhrase} {ex.Errors} ");
-                await RespondAsync($"Unable to tweet image: {ex.ReasonPhrase}", ephemeral: true);
+                await message.ReplyAsync($"Unable to tweet image: {ex.ReasonPhrase}");
             }
         }
 

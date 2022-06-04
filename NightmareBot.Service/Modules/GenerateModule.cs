@@ -165,7 +165,53 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         await Enqueue(request);
         _generateService.PixrayRequestQueue.Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
-    } 
+    }
+
+    [Command("fenhance")]
+    public async Task FaceEnhanceAsync()
+    {
+        var images = new List<string>();
+        var id = Guid.NewGuid();
+
+        foreach (var attachment in Context.Message.Attachments)
+        {
+            images.Add(attachment.Url);
+        }
+
+        if (Context.Message.ReferencedMessage != null)
+        {
+            foreach (var attachment in Context.Message.ReferencedMessage.Attachments)
+            {
+                images.Add(attachment.Url);
+            }
+        }
+
+        var image = images.FirstOrDefault();
+
+        if (image != null)
+        {
+            var httpClient = new HttpClient();
+            var input = new EsrganInput { images = images.ToArray(), face_enhance = true, outscale = 4 };
+            var request = new PredictionRequest<EsrganInput>(Context, input, id);
+            var imageBytes = await httpClient.GetByteArrayAsync(image);
+
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
+            var promptBytes = Encoding.UTF8.GetBytes("Enhanced image");
+            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var imageArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
+            await _minioClient.PutObjectAsync(imageArgs);
+
+            await Enqueue(request);
+            //_generateService.SwinIRRequestQueue.Enqueue(request);
+            await Context.Message.AddReactionAsync(new Emoji("✔️"));
+        }
+    }
 
     [Command("enhance")]
     public async Task EnhanceAsync()
@@ -186,9 +232,26 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         }
 
-        if (images.Any()) {
+        var image = images.FirstOrDefault();
+
+        if (image != null) {
+            var httpClient = new HttpClient();
             var input = new SwinIRInput { images = images.ToArray() };
-            var request = new PredictionRequest<SwinIRInput>(Context, input, id); 
+            var request = new PredictionRequest<SwinIRInput>(Context, input, id);
+            var imageBytes = await httpClient.GetByteArrayAsync(image);
+
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
+            var promptBytes = Encoding.UTF8.GetBytes("Enhanced image");
+            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var imageArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
+            await _minioClient.PutObjectAsync(imageArgs);
+
             await Enqueue(request);
             //_generateService.SwinIRRequestQueue.Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
