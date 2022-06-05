@@ -65,9 +65,32 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     {
         var prompt = $"Describe an AI generated artwork with the title \"{text}\":\n\n";
         var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(prompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
-        var newPrompt = generated.Completions.First().Text.Trim();
+        var newPrompt = generated.Completions.First().Text.Trim();        
         var input = new LatentDiffusionInput();
-        await LatentDiffusionAsync(newPrompt, input);
+        var id = Guid.NewGuid();
+        var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
+        input.prompt = newPrompt;
+        request.request_state.prompt = newPrompt;
+        request.request_state.gpt_prompt = text;
+
+        var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+        var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+        var promptBytes = Encoding.UTF8.GetBytes(input.prompt);
+        var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+        var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+        await _minioClient.PutObjectAsync(putObjectArgs);
+        var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+        await _minioClient.PutObjectAsync(putContextArgs);
+        var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+        await _minioClient.PutObjectAsync(promptArgs);
+        var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+        await _minioClient.PutObjectAsync(idArgs);
+
+
+        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompt);
+        //_generateService.LatentDiffusionQueue.Enqueue(request);
+        await Enqueue(request);
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
     [Command("ldm")]
@@ -78,6 +101,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
         if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompt))
             input.prompt = text;
+        request.request_state.prompt = text;
 
         var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
         var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
@@ -191,10 +215,10 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (image != null)
         {
             var httpClient = new HttpClient();
-            var input = new EsrganInput { images = images.ToArray(), face_enhance = true, outscale = 4 };
+            var input = new EsrganInput { images = images.ToArray(), face_enhance = true, outscale = 2 };
             var request = new PredictionRequest<EsrganInput>(Context, input, id);
             var imageBytes = await httpClient.GetByteArrayAsync(image);
-
+            request.request_state.prompt = "Enhanced image";
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
             var promptBytes = Encoding.UTF8.GetBytes("Enhanced image");
@@ -239,7 +263,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             var input = new SwinIRInput { images = images.ToArray() };
             var request = new PredictionRequest<SwinIRInput>(Context, input, id);
             var imageBytes = await httpClient.GetByteArrayAsync(image);
-
+            request.request_state.prompt = "Enhanced image";
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
             var promptBytes = Encoding.UTF8.GetBytes("Enhanced image");

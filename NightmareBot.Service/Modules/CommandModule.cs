@@ -11,6 +11,7 @@ using NightmareBot.Models;
 using OpenAI;
 using System.Text;
 using SixLabors.ImageSharp.Processing;
+using NightmareBot.Common;
 
 namespace NightmareBot.Modules
 {
@@ -21,23 +22,31 @@ namespace NightmareBot.Modules
         private readonly ILogger<CommandModule> _logger;
         private readonly TwitterContext _twitter;
         private readonly MinioClient _minioClient;
-        private readonly OpenAIClient _openAI;
+        private readonly OpenAIClient _openAI;        
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
+
+        private async Task<string> GetGPTPrompt(string prompt)
+        {
+            var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
+            return generated.Completions.First().Text.Trim();
+        }
 
         [SlashCommand("gptdream", "Generates a nightmare using AI assisted prompt generation", runMode: RunMode.Async)]
         public async Task GptDreamAsync(string prompt)
         {
             await DeferAsync(ephemeral: true);
-            var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
-            var newPrompt = generated.Completions.First().Text.Trim();
 
             var input = new MajestyDiffusionInput();
+                input.clip_prompts = input.latent_prompts = new[] { prompt };
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = await GetGPTPrompt(prompt);
             if (!string.IsNullOrWhiteSpace(newPrompt))
-                input.clip_prompts = input.latent_prompts = new[] { newPrompt };
+                input.clip_prompts = new[] { newPrompt };
+            request.request_state.prompt = newPrompt;
+            request.request_state.gpt_prompt = prompt;
 
             var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
             var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
@@ -138,7 +147,7 @@ namespace NightmareBot.Modules
                                 .WithCustomId("majesty-diffusion")
                                 .AddTextInput("Prompt", "prompt", value: prompt, style: TextInputStyle.Paragraph, required: true)
                                 .AddTextInput("Negative Prompt", "negative_prompt", value: "low quality image", required: false)
-                                .AddTextInput("Initial Image", "init_image", value: "", required: false, placeholder: "image url");
+                                .AddTextInput("Image Prompt", "init_image", value: "", required: false, placeholder: "image url");
                             await RespondWithModalAsync(modalBuilder.Build());
                         }
                         break;
@@ -177,7 +186,7 @@ namespace NightmareBot.Modules
                 input.drawer = modal.Drawer;
             input.settings = input.config;
             await RespondAsync($"Queued `pixray` dream\n ```{input.settings}```", ephemeral: true);
-
+            request.request_state.prompt = input.prompts;
             var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var promptBytes = Encoding.UTF8.GetBytes(input.prompts);
@@ -202,7 +211,7 @@ namespace NightmareBot.Modules
             var input = new PixrayInput();
             var id = Guid.NewGuid();
             var request = new PredictionRequest<PixrayInput>(Context, input, id);
-            
+            request.request_state.prompt = input.prompts;
             if (string.IsNullOrWhiteSpace(modal.Settings))
             { 
                 await RespondAsync("Settings were not provided.", ephemeral: true);
@@ -232,7 +241,7 @@ namespace NightmareBot.Modules
             if (int.TryParse(modal.Samples, out var samples))
                 input.n_samples = samples;
             await RespondAsync($"Queued `latent-diffusion` dream\n > {input.prompt}", ephemeral: true);
-
+            request.request_state.prompt = input.prompt;
             var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var promptBytes = Encoding.UTF8.GetBytes(modal.Prompt);
@@ -259,7 +268,12 @@ namespace NightmareBot.Modules
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
             if (!string.IsNullOrWhiteSpace(modal.Prompt))
-                input.clip_prompts = input.latent_prompts = new []{ modal.Prompt };
+            {
+                var gptPrompt = await GetGPTPrompt(modal.Prompt);
+                input.clip_prompts = new[] { modal.Prompt };
+                input.latent_prompts = new[] { gptPrompt };
+                request.request_state.prompt = modal.Prompt;
+            }            
             if (!string.IsNullOrWhiteSpace(modal.NegativePrompt))
                 input.latent_negatives = modal.NegativePrompt.Split('|', StringSplitOptions.TrimEntries & StringSplitOptions.RemoveEmptyEntries);
             if (!string.IsNullOrWhiteSpace(modal.InitImage))
@@ -272,7 +286,7 @@ namespace NightmareBot.Modules
                 */
                 input.image_prompts = new[] { modal.InitImage };
             }
-
+            
             var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
             var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
@@ -296,10 +310,16 @@ namespace NightmareBot.Modules
         [ComponentInteraction("enhance-face:*,*")]
         private async Task FaceEnhanceAsync(string id, string image)
         {
+            await RealEsrganAsync(id, image, true, 4);
+
+        }        
+
+        private async Task RealEsrganAsync(string id, string image, bool faceEnhance, int outscale)
+        {
             try
             {
                 var imageUrl = $"https://dumb.dev/nightmarebot-output/{id}/{image}";
-                var request = new PredictionRequest<EsrganInput>(Context, new EsrganInput { images = new[] { imageUrl }, face_enhance = true, outscale = 8 }, Guid.NewGuid());
+                var request = new PredictionRequest<EsrganInput>(Context, new EsrganInput { images = new[] { imageUrl }, face_enhance = faceEnhance, outscale = outscale }, Guid.NewGuid());
                 var prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
                 var httpClient = new HttpClient();
 
@@ -312,10 +332,10 @@ namespace NightmareBot.Modules
                     _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
                 }
 
-
+                request.request_state.prompt = prompt;
                 var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
 
-                var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));                
+                var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
                 var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
                 var promptBytes = Encoding.UTF8.GetBytes(prompt.ToString());
                 var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
@@ -357,7 +377,7 @@ namespace NightmareBot.Modules
                 {
                     _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
                 }
-
+                request.request_state.prompt = prompt;
                 var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));                
                 var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
                 var promptBytes = Encoding.UTF8.GetBytes(prompt.ToString());
@@ -379,6 +399,125 @@ namespace NightmareBot.Modules
             {
                 _logger.LogError(ex, "Error handling enhance request");
             }
+        }
+
+        [ComponentInteraction("enhance-select-images:*")]
+        private async Task EnhanceSelectAsync(string id, string[] selected)
+        {
+            //var state = await _daprClient.GetStateAsync<RequestState>("cosmosdb", $"request-{id}");
+            /*
+            if (state?.response_images == null)
+            {                
+                await RespondAsync("Request state not found. Sorry :(");
+                return;
+            }
+            var count = state.response_images.Count();
+            for (int i = 0; i < count; i++)
+                state.response_images.ElementAt(i).selected = selected.Contains(i.ToString());
+            */            
+            await _daprClient.SaveStateAsync("cosmosdb", $"enhance-selected-{Context.User.Id}-{id}", selected);
+            await DeferAsync();
+        }
+
+        [ComponentInteraction("enhance-select-direct:*,*")]
+        private async Task EnhanceSelectDirectAsync(string id, string image, string[] selected)
+        {
+            var item = selected.FirstOrDefault();
+            if (item == null) { return; }
+            await DeferAsync();
+            switch (item)
+            {
+                case "swinir":
+
+                        await EnhanceAsync(id, image);
+                    break;
+                case "esrgan":
+                case "esrgan-face":
+
+                        await RealEsrganAsync(id, image, item == "esrgan-face", 6);
+                    break;
+            }
+
+            var message = await GetOriginalResponseAsync();
+            var newComponents = new ComponentBuilder();
+            var customId = $"enhance-select-direct:{id},{image}";            
+            foreach (var component in message.Components)
+            {
+                if (component is SelectMenuComponent menuComponent)
+                {
+                    if (menuComponent.CustomId == customId)
+                    {
+                        _logger.LogInformation($"Found {customId}");
+                        var newMenuComponent = new SelectMenuBuilder().WithCustomId(customId).WithMinValues(menuComponent.MinValues).WithMaxValues(menuComponent.MaxValues).WithPlaceholder(menuComponent.Placeholder);
+                        foreach (var option in menuComponent.Options)
+                            if (option.Value != item)
+                                newMenuComponent.AddOption(new SelectMenuOptionBuilder(option));
+                        newComponents.WithSelectMenu(newMenuComponent);
+                    }
+                    else newComponents.WithSelectMenu(new SelectMenuBuilder(menuComponent));
+                }
+                else if (component is ButtonComponent buttonComponent)
+                    newComponents.WithButton(new ButtonBuilder(buttonComponent));
+                    
+            }
+            var newContent = message.Content + $"\n*Enhance using {item} has been requested*";
+            await message.ModifyAsync(m => { m.Content = newContent; });
+        }
+
+        [ComponentInteraction("enhance-select-type:*")]
+        private async Task EnhanceSelectTypeAsync(string id, string[] selected)
+        {
+            var state = await _daprClient.GetStateAsync<string[]>("cosmosdb", $"enhance-selected-{Context.User.Id}-{id}");
+            /*
+            if (state?.response_images == null || state?.request_id == null)
+            {
+                await RespondAsync("Request state not found. Sorry :(");
+                return;
+            }
+            */
+            var item = selected.FirstOrDefault();
+            if (item == null) { await RespondAsync(); return; }            
+            /*
+            List<ResponseImage> images = new List<ResponseImage>();
+            
+            for (int i = 0; i < state.response_images.Count(); i++)
+            {
+                var image = state.response_images.ElementAt(i);
+                if (image.selected)
+                {
+                    images.Add(image);
+                    imageIds += $"{i + 1} ";
+                }
+            }
+            imageIds = imageIds.Trim();
+            */
+            if (state == null || state.Length == 0) { await RespondAsync("You must select which images you'd like enhanced!", ephemeral: true); return; }
+            var imageIds = new List<string>();
+            var images = new List<string>();            
+            foreach (var image in state)
+            {
+                var sp = image.Split(',');
+                imageIds.Add(sp[0]);
+                images.Add(sp[1]);
+            }
+            await DeferAsync();            
+
+            switch (item)
+            {
+                case "swinir":
+                    foreach (var image in images)
+                        await EnhanceAsync(id, image);
+                    break;
+                case "esrgan":                    
+                case "esrgan-face":                    
+                        foreach (var image in images)
+                            await RealEsrganAsync(id, image, item == "esrgan-face", 6); 
+                    break;
+            }
+
+            var message = await GetOriginalResponseAsync();            
+            var newContent = message.Content + $"\n*Enhance using {item} has been requested for images {string.Join(',', imageIds)}*";
+            await message.ModifyAsync(m => m.Content = newContent);
         }
 
         [ComponentInteraction("pixray_init:*,*")]
@@ -434,7 +573,7 @@ namespace NightmareBot.Modules
         {
             await DeferAsync();
             var message = await GetOriginalResponseAsync();
-
+            
             try
             {
                 string prompt = await _daprClient.GetStateAsync<string>("cosmosdb", $"prompts-{id}");
@@ -477,8 +616,9 @@ namespace NightmareBot.Modules
                         await message.ReplyAsync("Twitter upload failed");
                     }
                     else
-                    {
-                        await message.ReplyAsync($"https://twitter.com/NightmareBotAI/status/{tweet.ID}");
+                    {                                                
+                        await message.ModifyAsync(m => { m.Components = null; m.Content = $"https://twitter.com/NightmareBotAI/status/{tweet.ID}"; m.Embed = null; });                        
+                        await message.ReplyAsync("Alerted the twitterverse!");
                     }
                 }
             }
@@ -491,6 +631,7 @@ namespace NightmareBot.Modules
 
         private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
         {
+            await _daprClient.SaveStateAsync("cosmosdb", $"request-{request.id}", request.request_state);
             await _daprClient.SaveStateAsync("cosmosdb", $"context-{request.id}", request.context);
             await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
             await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);

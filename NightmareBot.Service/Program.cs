@@ -5,6 +5,7 @@ using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Google.Cloud.BigQuery.V2;
 using LinqToTwitter.OAuth;
 using NightmareBot;
 using NightmareBot.Handlers;

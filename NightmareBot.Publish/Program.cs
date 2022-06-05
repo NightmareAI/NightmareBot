@@ -93,8 +93,13 @@ else if (Directory.Exists("/result/majesty"))
     var filename = Path.GetFileName(images[0]);
 
     var builder = new ComponentBuilder();
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance:{id},{filename}").WithLabel("Enhance"));
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance-face:{id},{filename}").WithLabel("Enhance+Face"));
+    builder.WithSelectMenu
+        ($"enhance-select-direct:{id},{filename}", new List<SelectMenuOptionBuilder>
+        {
+            new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
+        }, minValues: 1, maxValues: 1, placeholder: "Enhance");
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},{filename}").WithLabel("Dream"));
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{id},{filename}").WithLabel("Pixray"));
 
@@ -124,21 +129,27 @@ else if (Directory.Exists("/result/latent-diffusion"))
     var images = Directory.GetFiles("/result/latent-diffusion/samples/", "*.png");
 
     var builder = new ComponentBuilder();
-    List<ActionRowBuilder> actions = new List<ActionRowBuilder>();
-    ActionRowBuilder enhanceButtons = new ActionRowBuilder();
-    ActionRowBuilder enhanceFaceButtons = new ActionRowBuilder();
+    List<ActionRowBuilder> actions = new List<ActionRowBuilder>();    
+    ActionRowBuilder enhanceMenu = new ActionRowBuilder();
     ActionRowBuilder generateButtons = new ActionRowBuilder();
     ActionRowBuilder pixrayButtons = new ActionRowBuilder();
+    var imageOptions = new List<SelectMenuOptionBuilder>();
     for (int ix = 0; ix < images.Length; ix++)
     {
         var filename = Path.GetFileName(images[ix]);
-        enhanceButtons.WithButton($"Enhance {ix + 1}", $"enhance:{id},samples/{filename}", ButtonStyle.Primary);
-        enhanceFaceButtons.WithButton($"Enhance+Face {ix + 1}", $"enhance-face:{id},samples/{filename}", ButtonStyle.Primary);
+        imageOptions.Add(new SelectMenuOptionBuilder().WithValue($"{ix+1},samples/{filename}").WithLabel($"{ix + 1}"));
         generateButtons.WithButton($"Dream {ix + 1}", $"dream:{id},samples/{filename}", ButtonStyle.Secondary);
         pixrayButtons.WithButton($"Pixray {ix + 1}", $"pixray_init:{id},samples/{filename}", ButtonStyle.Secondary);
     }
-    actions.Add(enhanceButtons);
-    actions.Add(enhanceFaceButtons);
+    enhanceMenu.WithSelectMenu($"enhance-select-images:{id}", imageOptions, minValues: 1, maxValues: images.Length, placeholder: "Select Images");
+    actions.Add(enhanceMenu);
+    actions.Add(new ActionRowBuilder().
+        WithSelectMenu($"enhance-select-type:{id}", new List<SelectMenuOptionBuilder>
+        {
+            new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
+        }, minValues: 1, maxValues: 1, placeholder: "Enhance"));
     actions.Add(generateButtons);
     actions.Add(pixrayButtons);
     builder.WithRows(actions);
