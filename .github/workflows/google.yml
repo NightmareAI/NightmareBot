@@ -25,7 +25,7 @@ env:
   DEPLOYMENT_NAME: nightmarebot-service 
   REPOSITORY: nightmarebot 
   SERVICE_IMAGE: nightmarebot-service
-  SERVICE_PATH: NightmareBot  
+  SERVICE_PATH: NightmareBot.Service
   PUBLISH_IMAGE: nightmarebot-publish
   PUBLISH_PATH: NightmareBot.Publish
 
@@ -75,7 +75,8 @@ jobs:
           --tag "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_IMAGE:$GITHUB_SHA" \
           --build-arg GITHUB_SHA="$GITHUB_SHA" \
           --build-arg GITHUB_REF="$GITHUB_REF" \
-          . -f "$SERVICE_PATH/Dockerfile"        
+          . -f "$SERVICE_PATH/Dockerfile"       
+          
     - name: Build NightmareBot.Publish
       run: |-
         docker build \
