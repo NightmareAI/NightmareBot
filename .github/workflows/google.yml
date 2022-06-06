@@ -24,7 +24,7 @@ env:
   GKE_ZONE: us-central1-c   
   DEPLOYMENT_NAME: nightmarebot-service 
   REPOSITORY: nightmarebot 
-  IMAGE: service
+  IMAGE: nightmarebot-service
 
 jobs:
   setup-build-publish-deploy:
