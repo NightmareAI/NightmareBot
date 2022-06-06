@@ -43,12 +43,6 @@ public class PredictionRequest<T> where T : IGeneratorInput
         {
             switch (input)
             {
-                case DeepMusicInput:
-                    return "deep-music";
-                case Laionidev3Input:
-                    return "laionide-v3";
-                case Laionidev4Input:
-                    return "laionide-v4";
                 case LatentDiffusionInput:
                     return "latent-diffusion";
                 case PixrayInput:
@@ -57,8 +51,6 @@ public class PredictionRequest<T> where T : IGeneratorInput
                     return "swinir";
                 case EsrganInput:
                     return "esrgan";
-                case VRTInput:
-                    return "vrt";
                 case MajestyDiffusionInput:
                     return "majesty-diffusion";
                 default:
