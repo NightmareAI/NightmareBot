@@ -2,6 +2,7 @@
 
 namespace NightmareBot.Models;
 
+[Obsolete("Model no longer implemented")]
 public class Laionidev3Input : IGeneratorInput
 {
     [JsonPropertyName("prompt")]

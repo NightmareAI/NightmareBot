@@ -3,6 +3,7 @@ using Discord.Commands;
 namespace NightmareBot.Models;
 
 [NamedArgumentType]
+[Obsolete("Model no longer implemented")]
 public class DeepMusicInput : IGeneratorInput
 {
   public string song {get; set;}
