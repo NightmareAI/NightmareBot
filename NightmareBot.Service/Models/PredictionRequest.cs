@@ -7,10 +7,10 @@ using NightmareBot.Common;
 
 namespace NightmareBot.Models;
 
-public class PredictionRequest<T> where T : IGeneratorInput
+public class PredictionRequest<T> where T : IGeneratorInput, new()
 {
     [JsonPropertyName("input")]
-    public T input { get; set; }
+    public T input { get; set; } 
 
     [JsonPropertyName("context")]
     public DiscordContext context { get; set; } = new DiscordContext();
@@ -64,6 +64,7 @@ public class PredictionRequest<T> where T : IGeneratorInput
         this.request_state.created_at = this.request_time;
         this.request_state.last_updated = DateTime.UtcNow;
         this.request_state.request_type = this.request_type;
+        this.input = new T();
     }
 
     public PredictionRequest(T input, Guid id) : this()

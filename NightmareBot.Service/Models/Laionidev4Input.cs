@@ -9,7 +9,7 @@ public class Laionidev4Input : IGeneratorInput
     public string prompt { get; set; } = "";
 
     [JsonPropertyName("style_prompt")]
-    public string style_prompt { get; set; } = null;
+    public string style_prompt { get; set; } = "";
     [JsonPropertyName("batch_size")]
     public int batch_size { get; set; } = 1;
     [JsonPropertyName("side_x")]

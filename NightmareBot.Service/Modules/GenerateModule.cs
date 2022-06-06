@@ -3,6 +3,7 @@ using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Minio;
+using NightmareBot.Common;
 using NightmareBot.Models;
 using OpenAI;
 using System.Text;
@@ -10,7 +11,7 @@ using System.Text;
 namespace NightmareBot.Modules;
 
 public class GenerateModel : ModuleBase<SocketCommandContext>
-{    
+{
     private readonly DaprClient _daprClient;
     private readonly ILogger<GenerateModel> _logger;
     private readonly InteractionService _handler;
@@ -98,23 +99,23 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.input));
         var settingsBytes = Encoding.UTF8.GetBytes(request.input.settings);
         var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
-        var promptBytes = Encoding.UTF8.GetBytes(request.request_state.prompt);
-        var generatedPromptBytes = Encoding.UTF8.GetBytes(request.request_state.gpt_prompt);
+        var promptBytes = Encoding.UTF8.GetBytes(request.request_state.prompt ?? "Missing prompt");
+        var generatedPromptBytes = Encoding.UTF8.GetBytes(request.request_state.gpt_prompt ?? "Missing prompt");
         var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
-        var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+        var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
         await _minioClient.PutObjectAsync(putObjectArgs);
-        var putSettingsArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+        var putSettingsArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
         await _minioClient.PutObjectAsync(putSettingsArgs);
-        var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+        var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
         await _minioClient.PutObjectAsync(putContextArgs);
-        var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+        var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
         await _minioClient.PutObjectAsync(promptArgs);
-        var gptPromptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
+        var gptPromptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
         await _minioClient.PutObjectAsync(gptPromptArgs);
 
-        var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+        var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
         await _minioClient.PutObjectAsync(idArgs);
-        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{request.id}", request.request_state.prompt);
+        await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{request.id}", request.request_state.prompt);
         //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
         await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
@@ -152,17 +153,17 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var promptBytes = Encoding.UTF8.GetBytes(input.prompt);
             var idBytes = Encoding.UTF8.GetBytes(id.ToString());
-            var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
             await _minioClient.PutObjectAsync(putObjectArgs);
-            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
             await _minioClient.PutObjectAsync(putContextArgs);
-            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(promptArgs);
-            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(idArgs);
 
 
-            await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompt);
+            await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", input.prompt);
             //_generateService.LatentDiffusionQueue.Enqueue(request);
             await Enqueue(request);
             await Context.Message.AddReactionAsync(new Emoji("✔️"));
@@ -171,7 +172,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     [Command("ldm")]
     [Discord.Commands.Summary("Generates a nightmare using the latent diffusion model")]
-    public async Task LatentDiffusionAsync([Discord.Commands.Summary("The prediction text")] string text, [Discord.Commands.Summary("Latent diffusion settings")] LatentDiffusionInput input = default) 
+    public async Task LatentDiffusionAsync([Discord.Commands.Summary("The prediction text")] string text, [Discord.Commands.Summary("Latent diffusion settings")] LatentDiffusionInput input) 
     {
         var id = Guid.NewGuid();
         var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
@@ -181,19 +182,19 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
         var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
         var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
-        var promptBytes = Encoding.UTF8.GetBytes(input.prompt);
+        var promptBytes = Encoding.UTF8.GetBytes(input.prompt ?? "Missing prompt");
         var idBytes = Encoding.UTF8.GetBytes(id.ToString());
-        var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+        var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
         await _minioClient.PutObjectAsync(putObjectArgs);
-        var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+        var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
         await _minioClient.PutObjectAsync(putContextArgs);
-        var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+        var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
         await _minioClient.PutObjectAsync(promptArgs);
-        var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+        var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
         await _minioClient.PutObjectAsync(idArgs);
 
 
-        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompt);
+        await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", input.prompt);
         //_generateService.LatentDiffusionQueue.Enqueue(request);
         await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
@@ -208,13 +209,13 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         if (!string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(input.prompts))
             input.prompts = text;
 
-        IAttachment initImage = null;
+        IAttachment? initImage = null;        
         if (Context.Message.Attachments.Any()) {
             // First attachment is init image, that's all for now
-            initImage = Context.Message.Attachments.First();
+            initImage = Context.Message.Attachments.First();            
         } else if (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)
         {
-            initImage = Context.Message.ReferencedMessage.Attachments.First();
+            initImage = Context.Message.ReferencedMessage.Attachments.First();            
         }
 
         if (initImage != null)
@@ -235,7 +236,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             }
         }
 
-        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompts);
+        await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", input.prompts);
         await Enqueue(request);        
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
@@ -271,13 +272,13 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
             var promptBytes = Encoding.UTF8.GetBytes("Enhanced image");
-            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
             await _minioClient.PutObjectAsync(putContextArgs);
-            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(idArgs);
-            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(promptArgs);
-            var imageArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
+            var imageArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
             await _minioClient.PutObjectAsync(imageArgs);
 
             await Enqueue(request);
@@ -316,13 +317,13 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
             var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
             var promptBytes = Encoding.UTF8.GetBytes("Enhanced image");
-            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
             await _minioClient.PutObjectAsync(putContextArgs);
-            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(idArgs);
-            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
             await _minioClient.PutObjectAsync(promptArgs);
-            var imageArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
+            var imageArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/input.png").WithStreamData(new MemoryStream(imageBytes)).WithObjectSize(imageBytes.Length).WithContentType("image/png");
             await _minioClient.PutObjectAsync(imageArgs);
 
             await Enqueue(request);
@@ -331,12 +332,12 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
     }
 
-    private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
+    private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput, new()
     {
-        await _daprClient.SaveStateAsync("cosmosdb", $"request-{request.id}", request.request_state);
-        await _daprClient.SaveStateAsync("cosmosdb", $"context-{request.id}", request.context);
-        await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
-        await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);
+        await _daprClient.SaveStateAsync(Names.StateStore, $"request-{request.id}", request.request_state);
+        await _daprClient.SaveStateAsync(Names.StateStore, $"context-{request.id}", request.context);
+        await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
+        await _daprClient.SaveStateAsync(Names.StateStore, request.id.ToString(), request);
     }
     
 }

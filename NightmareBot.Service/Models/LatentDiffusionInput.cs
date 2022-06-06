@@ -5,7 +5,7 @@ namespace NightmareBot.Models;
 [NamedArgumentType]
 public class LatentDiffusionInput : IGeneratorInput
 {
-  public string prompt { get; set; }
+  public string? prompt { get; set; }
   public int ddim_steps { get; set; } = 80;
   public float ddim_eta { get; set; } = 0.0f;
   public int n_iter { get; set; } = 1;

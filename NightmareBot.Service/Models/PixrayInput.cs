@@ -10,38 +10,38 @@ public class PixrayInput : IGeneratorInput
 
     public string drawer { get; set; } = "vqgan";
 
-    public string seed { get; set; }
+    public string seed { get; set; } = "0";
 
     [JsonPropertyName("image_prompts")]
-    public string image_prompts { get; set; }
+    public string? image_prompts { get; set; }
 
-    public string init_image { get; set; }
+    public string? init_image { get; set; } 
 
     public int? init_image_alpha { get; set; }
 
-    public string init_noise { get; set; }
+    public string? init_noise { get; set; }
     public string quality { get; set; } = "normal";
     public int? num_cuts { get; set; } = 30;
     public IEnumerable<int> size { get; set; } = new [] { 240, 320 };
     public float? image_prompt_weight { get; set; }
     public bool image_prompt_shuffle { get; set; }
-    public string target_images { get; set; }
+    public string? target_images { get; set; }
     public int? iterations { get; set; }
     public int batches { get; set; } = 1;
     public double learning_rate { get; set; } = .2;
     public IEnumerable<int> learning_rate_drops { get; set; } = new[] { 75 };
     public bool auto_stop { get; set; } = false;
     public string clip_models { get; set; } = "RN50x4,ViT-B/16,ViT-B/32";
-    public string filters { get; set; }
-    public string palette { get; set; }
-    public string custom_loss { get; set; }
+    public string? filters { get; set; }
+    public string? palette { get; set; }
+    public string? custom_loss { get; set; }
     public int smoothness_weight { get; set; } = 1;
     public int saturation_weight { get; set; } = 1;
     public int palette_weight { get; set; } = 1;
-    public string vqgan_model { get; set; } 
+    public string? vqgan_model { get; set; } 
 
     // static rendered config
-    public string settings { get; set; }
+    public string? settings { get; set; }
 
     // dynamic rendered config
     public string config
