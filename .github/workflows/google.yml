@@ -24,7 +24,10 @@ env:
   GKE_ZONE: us-central1-c   
   DEPLOYMENT_NAME: nightmarebot-service 
   REPOSITORY: nightmarebot 
-  IMAGE: nightmarebot-service
+  SERVICE_IMAGE: nightmarebot-service
+  SERVICE_PATH: NightmareBot  
+  PUBLISH_IMAGE: nightmarebot-publish
+  PUBLISH_PATH: NightmareBot.Publish
 
 jobs:
   setup-build-publish-deploy:
@@ -66,17 +69,25 @@ jobs:
         location: ${{ env.GKE_ZONE }}
 
     # Build the Docker image
-    - name: Build
+    - name: Build NightmareBot
       run: |-
         docker build \
-          --tag "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA" \
+          --tag "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_IMAGE:$GITHUB_SHA" \
           --build-arg GITHUB_SHA="$GITHUB_SHA" \
           --build-arg GITHUB_REF="$GITHUB_REF" \
-          .
+          . -f "$SERVICE_PATH/Dockerfile"        
+    - name: Build NightmareBot.Publish
+      run: |-
+        docker build \
+          --tag "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$PUBLISH_IMAGE:$GITHUB_SHA" \
+          --build-arg GITHUB_SHA="$GITHUB_SHA" \
+          --build-arg GITHUB_REF="$GITHUB_REF" \
+          . -f "$PUBLISH_PATH/Dockerfile"        
     # Push the Docker image to Google Artifact Registry
     - name: Publish
       run: |-
-        docker push "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA"
+        docker push "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_IMAGE:$GITHUB_SHA"
+        docker push "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$PUBLISH_IMAGE:$GITHUB_SHA"
     # Set up kustomize
 #    - name: Set up Kustomize
 #      run: |-
