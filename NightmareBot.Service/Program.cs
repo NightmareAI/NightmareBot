@@ -1,17 +1,10 @@
-using System.Reflection;
-using Dapr.AspNetCore;
-using Dapr.Client;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Google.Cloud.BigQuery.V2;
 using LinqToTwitter.OAuth;
 using NightmareBot;
 using NightmareBot.Handlers;
-using NightmareBot.Models;
-using NightmareBot.Modules;
-using NightmareBot.Services;
 using OpenAI;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -37,7 +30,6 @@ builder.Services.AddSingleton(x => new DiscordSocketClient(new DiscordSocketConf
 builder.Services.AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>()));
 builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
-builder.Services.AddSingleton<GenerateService>();
 builder.Services.AddSingleton(x => new OpenAIClient(OpenAIAuthentication.LoadFromEnv()));
 //builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
 

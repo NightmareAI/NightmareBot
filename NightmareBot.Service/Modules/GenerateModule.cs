@@ -4,28 +4,26 @@ using Discord.Commands;
 using Discord.Interactions;
 using Minio;
 using NightmareBot.Models;
-using NightmareBot.Services;
 using OpenAI;
 using System.Text;
 
 namespace NightmareBot.Modules;
 
 public class GenerateModel : ModuleBase<SocketCommandContext>
-{
-    private readonly GenerateService _generateService;
+{    
     private readonly DaprClient _daprClient;
     private readonly ILogger<GenerateModel> _logger;
     private readonly InteractionService _handler;
     private readonly MinioClient _minioClient;
     private readonly OpenAIClient _openAI;
 
-    public GenerateModel(GenerateService generateService, DaprClient daprClient, InteractionService handler, MinioClient minioClient, OpenAIClient openAI)
-    {
-        _generateService = generateService;
+    public GenerateModel(DaprClient daprClient, InteractionService handler, MinioClient minioClient, OpenAIClient openAI, ILogger<GenerateModel> logger)
+    {        
         _daprClient = daprClient;
         _handler = handler;
         this._minioClient = minioClient;
         _openAI = openAI;
+        _logger = logger;
     }
 
     [Command("reg")]
@@ -220,8 +218,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
             await Context.Message.AddReactionAsync(new Emoji("❌"));
         
         request.input.song = song.Url;
-
-        _generateService.DeepMusicQueue.Enqueue(request);
+        
         await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
 
@@ -264,8 +261,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
 
         await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompts);
-        await Enqueue(request);
-        _generateService.PixrayRequestQueue.Enqueue(request);
+        await Enqueue(request);        
         await Context.Message.AddReactionAsync(new Emoji("✔️"));        
     }
 
@@ -380,8 +376,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         
         var input = new VRTInput { video = video.Url };
         var request = new PredictionRequest<VRTInput>(Context, input, id); 
-        Enqueue(request);
-        _generateService.VRTQueue.Enqueue(request);
+        Enqueue(request);        
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
@@ -414,8 +409,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         var seed = Random.Shared.NextInt64();
         var id = Guid.NewGuid();
         var request = new PredictionRequest<Laionidev4Input>(Context, new Laionidev4Input(text, styleTags, seed), id);
-        Enqueue(request);
-        _generateService.Laionidev4RequestQueue.Enqueue(request);
+        await Enqueue(request);        
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
@@ -440,9 +434,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         
         var seed = Random.Shared.NextInt64();
         var id = Guid.NewGuid();
-        var request = new PredictionRequest<PixrayInput>(Context, new PixrayInput { drawer = drawer, prompts = prompt, }, id);
-        _generateService.PixrayRequestQueue.Enqueue(request);
-        Enqueue(request);
+        var request = new PredictionRequest<PixrayInput>(Context, new PixrayInput { drawer = drawer, prompts = prompt, }, id);        
+        await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
         
     }
@@ -461,9 +454,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
                 sr_timestep_respacing = "20",
                 timestep_respacing = "75"
             }
-        };
-        _generateService.Laionidev3RequestQueue.Enqueue(request);
-        Enqueue(request);
+        };        
+        await Enqueue(request);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
