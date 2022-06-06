@@ -90,7 +90,7 @@ public class CommandHandler
                             channel = component.ChannelId.ToString(), 
                             message = component.Message.Id.ToString(),
                             user = component.User.Id.ToString(),
-                            guild = (component.Channel as SocketGuildChannel).Guild.Id.ToString()
+                            guild = (component.Channel as SocketGuildChannel)?.Guild.Id.ToString()
                         },
                         id = Guid.NewGuid(),
                         request_time = DateTime.UtcNow,

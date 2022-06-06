@@ -14,6 +14,9 @@ if (Directory.Exists("/result/pixray"))
     var prompt = File.ReadAllText("/result/pixray/prompt.txt");
     var id = File.ReadAllText("/result/pixray/id.txt");
 
+    if (context == null)
+        return;
+
     ulong.TryParse(context.guild, out var guild_id);
     ulong.TryParse(context.channel, out var channel_id);
     ulong.TryParse(context.message, out var message_id);
@@ -48,6 +51,9 @@ else if (Directory.Exists("/result/swinir"))
     var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/result/swinir/context.json"));
     var prompt = File.ReadAllText("/result/swinir/prompt.txt");
     var id = File.ReadAllText("/result/swinir/id.txt");
+
+    if (context == null)
+        return;
 
     ulong.TryParse(context.guild, out var guild_id);
     ulong.TryParse(context.channel, out var channel_id);
@@ -84,6 +90,8 @@ else if (Directory.Exists("/result/majesty"))
     var message =
     $"> {prompt}\n";
 
+    if (context == null)
+        return;
     ulong.TryParse(context.guild, out var guild_id);
     ulong.TryParse(context.channel, out var channel_id);
     ulong.TryParse(context.message, out var message_id);
@@ -120,6 +128,9 @@ else if (Directory.Exists("/result/latent-diffusion"))
     var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/input/context.json"));
     var prompt = File.ReadAllText("/input/prompt.txt");
     var id = File.ReadAllText("/input/id.txt");
+
+    if (context == null)
+        return;
 
     var message =
     $"> {prompt}\n";
@@ -178,6 +189,9 @@ else if (Directory.Exists("/result/enhance"))
     var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/input/context.json"));
     var prompt = File.ReadAllText("/input/prompt.txt");
     var id = File.ReadAllText("/input/id.txt");
+
+    if (context == null)
+        return;
 
     ulong.TryParse(context.guild, out var guild_id);
     ulong.TryParse(context.channel, out var channel_id);

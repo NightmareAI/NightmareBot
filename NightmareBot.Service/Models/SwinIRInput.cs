@@ -5,6 +5,6 @@ namespace NightmareBot.Models;
 public class SwinIRInput : IGeneratorInput
 {
   [JsonPropertyName("images")]
-  public string[] images { get; set; }
+  public string[]? images { get; set; }
 
 }
