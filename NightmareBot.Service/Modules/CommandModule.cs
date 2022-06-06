@@ -26,7 +26,7 @@ namespace NightmareBot.Modules
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
 
-        private async Task<string> GetGPTPrompt(string prompt)
+        public async Task<string> GetGPTPrompt(string prompt)
         {
             var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
             var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
@@ -601,6 +601,10 @@ namespace NightmareBot.Modules
                 {
                     _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
                 }
+
+                if (prompt.Length > 160)
+                    prompt = prompt.Substring(0, 160);
+
                 var upload = await _twitter.UploadMediaAsync(imageData, "image/png", "TweetImage");
                 if (upload == null || upload.MediaID == 0)
                 {
@@ -608,7 +612,7 @@ namespace NightmareBot.Modules
                     await message.ReplyAsync("Twitter upload failed");
                 } 
                 else
-                {                    
+                {                                        
                     var tweet = await _twitter.TweetMediaAsync(prompt, new[] { upload.MediaID.ToString() });
                     if (tweet == null)
                     {

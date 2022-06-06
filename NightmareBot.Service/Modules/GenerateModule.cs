@@ -49,9 +49,18 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     public async Task GenerateAsync([Remainder] [Discord.Commands.Summary("The prediction text")] string text)
     {
         if (Context.Message.Attachments.Any() || (Context.Message.ReferencedMessage?.Attachments.Any() ?? false)) 
-        {            
-            var input = new PixrayInput();
-            await PixrayAsync(text, input);
+        {
+            var input = new MajestyDiffusionInput();
+            input.clip_prompts = input.latent_prompts = new[] { text };
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = await GetGPTPrompt(text);
+            if (!string.IsNullOrWhiteSpace(newPrompt))
+                input.clip_prompts = new[] { newPrompt };
+            request.request_state.prompt = text;
+            request.request_state.gpt_prompt = newPrompt;
+
+            await MajestyAsync(request);
         } 
         else 
         {
@@ -60,37 +69,106 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }        
     }
 
+    public async Task<string> GetGPTPrompt(string prompt)
+    {
+        try
+        {
+            var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
+            return generated.Completions.First().Text.Trim();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Unable to query GPT-3 for {prompt}");
+            return String.Empty;
+        }
+    }
+
+
+    public async Task MajestyAsync(PredictionRequest<MajestyDiffusionInput> request)
+    {
+        List<IAttachment> imagePrompts = new List<IAttachment>();        
+        if (Context.Message.Attachments != null)
+            imagePrompts.AddRange(Context.Message.Attachments);
+        if (Context.Message.ReferencedMessage?.Attachments != null)
+            imagePrompts.AddRange(Context.Message.ReferencedMessage.Attachments);
+        if (imagePrompts.Any())
+        {
+            request.input.image_prompts = imagePrompts.Select(i => i.Url).ToArray();
+        }
+
+        var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.input));
+        var settingsBytes = Encoding.UTF8.GetBytes(request.input.settings);
+        var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+        var promptBytes = Encoding.UTF8.GetBytes(request.request_state.prompt);
+        var generatedPromptBytes = Encoding.UTF8.GetBytes(request.request_state.gpt_prompt);
+        var idBytes = Encoding.UTF8.GetBytes(request.id.ToString());
+        var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+        await _minioClient.PutObjectAsync(putObjectArgs);
+        var putSettingsArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+        await _minioClient.PutObjectAsync(putSettingsArgs);
+        var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+        await _minioClient.PutObjectAsync(putContextArgs);
+        var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+        await _minioClient.PutObjectAsync(promptArgs);
+        var gptPromptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
+        await _minioClient.PutObjectAsync(gptPromptArgs);
+
+        var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{request.id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+        await _minioClient.PutObjectAsync(idArgs);
+        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{request.id}", request.request_state.prompt);
+        //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
+        await Enqueue(request);
+        await Context.Message.AddReactionAsync(new Emoji("✔️"));
+    }
+
     [Command("gptgen")]
     public async Task AiGenerateAsync([Remainder][Discord.Commands.Summary("The prediction text")] string text)
     {
-        var prompt = $"Describe an AI generated artwork with the title \"{text}\":\n\n";
-        var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(prompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
-        var newPrompt = generated.Completions.First().Text.Trim();        
-        var input = new LatentDiffusionInput();
-        var id = Guid.NewGuid();
-        var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
-        input.prompt = newPrompt;
-        request.request_state.prompt = newPrompt;
-        request.request_state.gpt_prompt = text;
+        if (Context.Message.Attachments.Any() || (Context.Message.ReferencedMessage?.Attachments.Any() ?? false))
+        {
+            var input = new MajestyDiffusionInput();
+            input.clip_prompts = input.latent_prompts = new[] { text };
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = await GetGPTPrompt(text);
+            if (!string.IsNullOrWhiteSpace(newPrompt))
+                input.clip_prompts = new[] { text };
+            request.request_state.prompt = text;
+            request.request_state.gpt_prompt = newPrompt;
 
-        var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
-        var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
-        var promptBytes = Encoding.UTF8.GetBytes(input.prompt);
-        var idBytes = Encoding.UTF8.GetBytes(id.ToString());
-        var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
-        await _minioClient.PutObjectAsync(putObjectArgs);
-        var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
-        await _minioClient.PutObjectAsync(putContextArgs);
-        var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
-        await _minioClient.PutObjectAsync(promptArgs);
-        var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
-        await _minioClient.PutObjectAsync(idArgs);
+            await MajestyAsync(request);
+        }
+        else
+        {
+            //var prompt = $"Describe an AI generated artwork with the title \"{text}\":\n\n";
+            var newPrompt = await GetGPTPrompt(text);
+            var input = new LatentDiffusionInput();
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
+            input.prompt = newPrompt;
+            request.request_state.prompt = newPrompt;
+            request.request_state.gpt_prompt = text;
+
+            var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(input.prompt);
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putObjectArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var idArgs = new PutObjectArgs().WithBucket("nightmarebot-workflow").WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
 
 
-        await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompt);
-        //_generateService.LatentDiffusionQueue.Enqueue(request);
-        await Enqueue(request);
-        await Context.Message.AddReactionAsync(new Emoji("✔️"));        
+            await _daprClient.SaveStateAsync("cosmosdb", $"prompts-{id}", input.prompt);
+            //_generateService.LatentDiffusionQueue.Enqueue(request);
+            await Enqueue(request);
+            await Context.Message.AddReactionAsync(new Emoji("✔️"));
+        }
     }
 
     [Command("ldm")]
@@ -402,6 +480,8 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
 
     private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput
     {
+        await _daprClient.SaveStateAsync("cosmosdb", $"request-{request.id}", request.request_state);
+        await _daprClient.SaveStateAsync("cosmosdb", $"context-{request.id}", request.context);
         await _daprClient.PublishEventAsync("jetstream-pubsub", $"request.{request.request_type}", request);
         await _daprClient.SaveStateAsync("cosmosdb", request.id.ToString(), request);
     }
