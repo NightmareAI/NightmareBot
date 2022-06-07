@@ -26,7 +26,7 @@ namespace NightmareBot.Modules
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
 
-        public async Task<string> GetGPTPrompt(string prompt)
+        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 75)
         {
             try
             {
@@ -42,7 +42,9 @@ namespace NightmareBot.Modules
         {
             try
             {
-                return await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt);
+                var response = await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt, 150);
+
+                return response;
             }
             catch
             {
@@ -50,16 +52,14 @@ namespace NightmareBot.Modules
             }
         }
 
-        private async Task<string> GetGPTResult(string gptPrompt, string prompt)
+        private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75)
         {
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
             var response = generated.Completions.First().Text.Trim().Trim('"');
             if (response.StartsWith(prompt + '"', StringComparison.InvariantCultureIgnoreCase))
                 response = '"' + response;
             if (response.EndsWith('"' + prompt, StringComparison.InvariantCultureIgnoreCase))
                 response += '"';
-            if (!response.Contains(prompt, StringComparison.InvariantCultureIgnoreCase))
-                response += $"\n*{prompt}*\n";
 
             return response;
         }
@@ -73,7 +73,7 @@ namespace NightmareBot.Modules
                 input.clip_prompts = input.latent_prompts = new[] { prompt };
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
-            var newPrompt = await GetGPTPrompt(prompt);
+            var newPrompt = await GetGPTPrompt(prompt, 150);
             if (!string.IsNullOrWhiteSpace(newPrompt))
                 input.clip_prompts = new[] { newPrompt };
             request.request_state.prompt = newPrompt;
@@ -102,7 +102,7 @@ namespace NightmareBot.Modules
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
             await Enqueue(request);
 
-            var response = await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", prompt, ". Please generate a funny, sarcastic, or weird confirmation that it was queued");
+            var response = await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", prompt, ". Write a joke about the title that also confirms it has been queued");
 
             await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n *Generated Prompt*\n```{newPrompt}```");
 
@@ -196,8 +196,7 @@ namespace NightmareBot.Modules
 
         [ModalInteraction("pixray-simple")]
         public async Task PixraySimpleModalResponse(PixrayModal modal)
-        {
-            //await DeferAsync(ephemeral: true);
+        {            
             var input = new PixrayInput();
             var id = Guid.NewGuid();
             var request = new PredictionRequest<PixrayInput>(Context, input, id);
@@ -217,7 +216,8 @@ namespace NightmareBot.Modules
             if (!string.IsNullOrWhiteSpace(modal.Drawer))
                 input.drawer = modal.Drawer;
             input.settings = input.config;
-            await RespondAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", input.prompts, ". Please generate a funny, sarcastic, or weird confirmation that it was queued"));
+            var response = await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", input.prompts, ". Write a joke about the title that also confirms it has been queued");
+            await RespondAsync(response);
             request.request_state.prompt = input.prompts;
             var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
