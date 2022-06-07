@@ -54,10 +54,13 @@ namespace NightmareBot.Modules
         {
             var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
             var response = generated.Completions.First().Text.Trim().Trim('"');
-            if (response.StartsWith(prompt + '"'))
+            if (response.StartsWith(prompt + '"', StringComparison.InvariantCultureIgnoreCase))
                 response = '"' + response;
-            if (response.EndsWith('"' + prompt))
+            if (response.EndsWith('"' + prompt, StringComparison.InvariantCultureIgnoreCase))
                 response += '"';
+            if (!response.Contains(prompt, StringComparison.InvariantCultureIgnoreCase))
+                response += $"\n*{prompt}*\n";
+
             return response;
         }
 
