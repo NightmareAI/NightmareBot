@@ -1,11 +1,26 @@
 ﻿using Discord;
 using Discord.Rest;
 using NightmareBot.Common;
-
+using OpenAI;
 
 var discord = new DiscordRestClient();
 await discord.LoginAsync(Discord.TokenType.Bot, Environment.GetEnvironmentVariable("NIGHTMAREBOT_TOKEN"));
+var openAI = new OpenAIClient(OpenAIAuthentication.LoadFromEnv());
 
+async Task<string> GPT3Announce(string prompt)
+{
+    try
+    {
+        var gptPrompt = $"You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just completed a piece of art titled \"{prompt}\". Please generate a funny, sarcastic, or weird announcement:";
+        var generated = await openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
+        return generated.Completions.First().Text.Trim().Trim('"');
+    }
+    catch
+    {
+        return prompt;
+    }
+
+}
 
 if (Directory.Exists("/result/pixray"))
 {
@@ -22,7 +37,7 @@ if (Directory.Exists("/result/pixray"))
     ulong.TryParse(context.message, out var message_id);
     ulong.TryParse(context.user, out var user_id);
 
-    var message =
+    var message = await GPT3Announce(prompt) + "\n" +    
         $"```{settings}```\n" +
         $"https://dumb.dev/nightmarebot-output/{id}/steps/output.mp4\n";
 
@@ -87,8 +102,7 @@ else if (Directory.Exists("/result/majesty"))
     var prompt = File.ReadAllText("/tmp/majesty/prompt.txt");
     var id = File.ReadAllText("/tmp/majesty/id.txt");
 
-    var message =
-    $"> {prompt}\n";
+    var message = await GPT3Announce(prompt) + "\n";
 
     if (context == null)
         return;
@@ -132,8 +146,7 @@ else if (Directory.Exists("/result/latent-diffusion"))
     if (context == null)
         return;
 
-    var message =
-    $"> {prompt}\n";
+    var message = await GPT3Announce(prompt) + "\n";
 
     var gridImage = Directory.GetFiles("/result/latent-diffusion/", "*.png").First();
 

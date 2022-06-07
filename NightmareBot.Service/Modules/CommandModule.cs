@@ -28,15 +28,38 @@ namespace NightmareBot.Modules
 
         public async Task<string> GetGPTPrompt(string prompt)
         {
-            var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
+            try
+            {
+                return await GetGPTResult($"Briefly describe a piece of artwork titled \"{prompt}\":\n\n");
+            }
+            catch
+            {
+                return prompt;
+            }
+        }
+
+        public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
+        {
+            try
+            {
+                return await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:");
+            }
+            catch
+            {
+                return prompt;
+            }
+        }
+
+        private async Task<string> GetGPTResult(string gptPrompt)
+        {
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
             return generated.Completions.First().Text.Trim();
         }
 
         [SlashCommand("gptdream", "Generates a nightmare using AI assisted prompt generation", runMode: RunMode.Async)]
         public async Task GptDreamAsync(string prompt)
         {
-            await DeferAsync(ephemeral: true);
+            await DeferAsync();
 
             var input = new MajestyDiffusionInput();
                 input.clip_prompts = input.latent_prompts = new[] { prompt };
@@ -71,7 +94,9 @@ namespace NightmareBot.Modules
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
             await Enqueue(request);
 
-            await ModifyOriginalResponseAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {newPrompt}");
+            var response = await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", prompt, ". Please generate a funny, sarcastic, or weird confirmation that it was queued");
+
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n *Generated Prompt*\n```{newPrompt}```");
 
         }
 
@@ -156,8 +181,7 @@ namespace NightmareBot.Modules
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Failed to queue request {ex}");
-                await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.DeleteAsync());
+                _logger.LogError(ex, $"Failed to queue request {ex}");                
                 await RespondAsync($"Failed to queue: {ex.Message}", ephemeral: true);
             }
         }
@@ -185,7 +209,7 @@ namespace NightmareBot.Modules
             if (!string.IsNullOrWhiteSpace(modal.Drawer))
                 input.drawer = modal.Drawer;
             input.settings = input.config;
-            await RespondAsync($"Queued `pixray` dream\n ```{input.settings}```", ephemeral: true);
+            await RespondAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", input.prompts, ". Please generate a funny, sarcastic, or weird confirmation that it was queued"));
             request.request_state.prompt = input.prompts;
             var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
@@ -234,13 +258,15 @@ namespace NightmareBot.Modules
             var request = new PredictionRequest<LatentDiffusionInput>(Context, input, id);
             if (!string.IsNullOrWhiteSpace(modal.Prompt) && string.IsNullOrWhiteSpace(input.prompt))
                 input.prompt = modal.Prompt;
+            if (string.IsNullOrWhiteSpace(input.prompt))
+                return;
             if (float.TryParse(modal.Scale, out var scale))
                 input.scale = scale;
             if (int.TryParse(modal.Steps, out var steps))
                 input.ddim_steps = steps;
             if (int.TryParse(modal.Samples, out var samples))
                 input.n_samples = samples;
-            await RespondAsync($"Queued `latent-diffusion` dream\n > {input.prompt}", ephemeral: true);
+            await RespondAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", input.prompt, ". Please generate a funny, sarcastic, or weird confirmation that it was queued"));
             request.request_state.prompt = input.prompt;
             var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
             var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
@@ -263,7 +289,12 @@ namespace NightmareBot.Modules
         [ModalInteraction("majesty-diffusion")]
         public async Task MajestyDiffusionModalResponse(MajestyDiffusionModal modal)
         {
-            await RespondAsync($"Queued `majesty-diffusion` dream\n > {modal.Prompt}", ephemeral: true);
+            if (string.IsNullOrWhiteSpace(modal.Prompt))
+            {
+                await RespondAsync("You didn't fill it in.", ephemeral: true);
+                return;
+            }
+            await RespondAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just been asked to generate a piece of art titled ", modal.Prompt, ". Please generate a funny, sarcastic, or weird confirmation that it was queued"));
             var input = new MajestyDiffusionInput();
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
@@ -621,8 +652,9 @@ namespace NightmareBot.Modules
                     }
                     else
                     {                                                
-                        await message.ModifyAsync(m => { m.Components = null; m.Content = $"https://twitter.com/NightmareBotAI/status/{tweet.ID}"; m.Embed = null; });                        
-                        await message.ReplyAsync("Alerted the twitterverse!");
+                        await message.ModifyAsync(m => { m.Components = null; m.Content = $"https://twitter.com/NightmareBotAI/status/{tweet.ID}"; m.Embed = null; });
+
+                        await message.ReplyAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just posted a piece titled", prompt, "on Twitter, please write a funny, sarcastic, weird, or creepy one-liner announcement for the channel"));
                     }
                 }
             }

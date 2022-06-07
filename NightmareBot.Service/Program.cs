@@ -76,6 +76,6 @@ client.Log += logger.Log;
 commands.Log += logger.Log;
 await client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("NIGHTMAREBOT_TOKEN"));
 await client.StartAsync();
-await client.SetGameAsync("the wind", null, ActivityType.Listening);
+await client.SetGameAsync("the art critics", null, ActivityType.Listening);
 await app.Services.GetRequiredService<CommandHandler>().InstallCommandsAsync(app.Services);
 app.Run();
