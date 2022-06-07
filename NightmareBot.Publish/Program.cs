@@ -18,6 +18,8 @@ async Task<string> GPT3Announce(string prompt)
             response = '"' + response;
         if (response.EndsWith('"' + prompt))
             response += '"';
+        if (!response.Contains(prompt))
+            response += $"\n*{prompt}*\n";
         return response;
     }
     catch
