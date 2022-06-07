@@ -30,7 +30,7 @@ namespace NightmareBot.Modules
         {
             try
             {
-                return await GetGPTResult($"Briefly describe a piece of artwork titled \"{prompt}\":\n\n");
+                return await GetGPTResult($"Briefly describe a piece of artwork titled \"{prompt}\":\n\n", prompt);
             }
             catch
             {
@@ -42,7 +42,7 @@ namespace NightmareBot.Modules
         {
             try
             {
-                return await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:");
+                return await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt);
             }
             catch
             {
@@ -50,10 +50,15 @@ namespace NightmareBot.Modules
             }
         }
 
-        private async Task<string> GetGPTResult(string gptPrompt)
+        private async Task<string> GetGPTResult(string gptPrompt, string prompt)
         {
             var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
-            return generated.Completions.First().Text.Trim();
+            var response = generated.Completions.First().Text.Trim().Trim('"');
+            if (response.StartsWith(prompt + '"'))
+                response = '"' + response;
+            if (response.EndsWith('"' + prompt))
+                response += '"';
+            return response;
         }
 
         [SlashCommand("gptdream", "Generates a nightmare using AI assisted prompt generation", runMode: RunMode.Async)]

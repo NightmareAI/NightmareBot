@@ -13,7 +13,12 @@ async Task<string> GPT3Announce(string prompt)
     {
         var gptPrompt = $"You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just completed a piece of art titled \"{prompt}\". Please generate a funny, sarcastic, or weird announcement:";
         var generated = await openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
-        return generated.Completions.First().Text.Trim();
+        var response = generated.Completions.First().Text.Trim().Trim('"');
+        if (response.StartsWith(prompt + '"'))
+            response = '"' + response;
+        if (response.EndsWith('"' + prompt))
+            response += '"';
+        return response;
     }
     catch
     {
