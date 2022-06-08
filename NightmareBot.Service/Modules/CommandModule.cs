@@ -40,7 +40,7 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTQueueResponse(string prompt)
         {
-            return await GetGPTNotification($"You have just been asked by {Context.User.Username} to generate a piece of art titled ", prompt, ". Say something witty:");
+            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate a piece of art titled ", prompt, ". Say something witty:");
         }
 
         public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
@@ -59,13 +59,14 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75)
         {
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("curie-instruct-beta"));
             var response = generated.Completions.First().Text.Trim().Trim('"');
             if (response.StartsWith(prompt + '"', StringComparison.InvariantCultureIgnoreCase))
                 response = '"' + response;
             if (response.EndsWith('"' + prompt, StringComparison.InvariantCultureIgnoreCase))
                 response += '"';
-
+            if (response.Length > 280)
+                response = response.Substring(0, 280);
             return response;
         }
 
@@ -78,9 +79,10 @@ namespace NightmareBot.Modules
                 input.clip_prompts = input.latent_prompts = new[] { prompt };
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
-            var newPrompt = await GetGPTPrompt(prompt, 150);
+            var newPrompt = await GetGPTPrompt(prompt, 100);
             if (!string.IsNullOrWhiteSpace(newPrompt))
                 input.clip_prompts = new[] { newPrompt };
+            
             request.request_state.prompt = newPrompt;
             request.request_state.gpt_prompt = prompt;
 
@@ -652,8 +654,8 @@ namespace NightmareBot.Modules
                     _logger.LogWarning(ex, "Error loading prompt from stoage, using state store");
                 }
 
-                if (prompt.Length > 160)
-                    prompt = prompt.Substring(0, 160);
+                if (prompt.Length > 280)
+                    prompt = prompt.Substring(0, 280);
 
                 var upload = await _twitter.UploadMediaAsync(imageData, "image/png", "TweetImage");
                 if (upload == null || upload.MediaID == 0)
