@@ -26,11 +26,11 @@ namespace NightmareBot.Modules
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
 
-        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 60)
+        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 40)
         {
             try
             {
-                return await GetGPTResult($"Briefly describe the artwork titled \"{prompt}\":\n\n", prompt);
+                return await GetGPTResult($"Describe the artwork titled \"{prompt}\" using as few words as possible:\n\n", prompt, max_tokens, 0.7, 0.5, 0.3);
             }
             catch
             {
@@ -40,7 +40,7 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTQueueResponse(string prompt)
         {
-            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate a piece of art titled ", prompt, ". Generate a witty, topical confirmation:");
+            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate a piece of art titled ", prompt, ". What is your response?");
         }
 
         public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
@@ -57,9 +57,9 @@ namespace NightmareBot.Modules
             }
         }
 
-        private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75)
+        private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75, double temperature = 0.8, double presence = 0, double frequency = 0, string model="text-curie-001" )
         {
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-curie-001"));
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: temperature, presencePenalty: presence, frequencyPenalty: frequency, engine: new Engine("text-curie-001"));
             var response = generated.Completions.First().Text.Trim().Trim('"');
             if (response.StartsWith(prompt + '"', StringComparison.InvariantCultureIgnoreCase))
                 response = '"' + response;
@@ -79,7 +79,7 @@ namespace NightmareBot.Modules
                 input.clip_prompts = input.latent_prompts = new[] { prompt };
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
-            var newPrompt = await GetGPTPrompt(prompt, 60);
+            var newPrompt = await GetGPTPrompt(prompt);
             if (!string.IsNullOrWhiteSpace(newPrompt))
                 input.clip_prompts = new[] { newPrompt };
             
