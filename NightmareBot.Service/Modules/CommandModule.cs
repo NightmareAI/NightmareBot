@@ -26,7 +26,7 @@ namespace NightmareBot.Modules
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
 
-        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 40)
+        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 64)
         {
             try
             {

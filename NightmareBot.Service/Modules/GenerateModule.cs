@@ -73,7 +73,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         try
         {
             var gptPrompt = $"Briefly describe a piece of artwork titled \"{prompt}\":\n\n";
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-curie-001"));
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 64, temperature: 0.7, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-curie-001"));
             return generated.Completions.First().Text.Trim();
         }
         catch (Exception ex)
