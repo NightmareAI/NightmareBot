@@ -26,11 +26,11 @@ namespace NightmareBot.Modules
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
 
-        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 75)
+        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 60)
         {
             try
             {
-                return await GetGPTResult($"Briefly describe a piece of artwork titled \"{prompt}\":\n\n", prompt);
+                return await GetGPTResult($"Briefly describe the artwork titled \"{prompt}\":\n\n", prompt);
             }
             catch
             {
@@ -40,7 +40,7 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTQueueResponse(string prompt)
         {
-            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate a piece of art titled ", prompt, ". Say something witty:");
+            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate a piece of art titled ", prompt, ". Generate a witty, topical confirmation:");
         }
 
         public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
@@ -79,7 +79,7 @@ namespace NightmareBot.Modules
                 input.clip_prompts = input.latent_prompts = new[] { prompt };
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
-            var newPrompt = await GetGPTPrompt(prompt, 100);
+            var newPrompt = await GetGPTPrompt(prompt, 60);
             if (!string.IsNullOrWhiteSpace(newPrompt))
                 input.clip_prompts = new[] { newPrompt };
             
