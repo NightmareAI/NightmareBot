@@ -24,16 +24,16 @@ public class MajestyDiffusionInput : IGeneratorInput
     public float init_brightness { get; set; } = 0.0f;
     public float init_noise { get; set; } = 0.6f;
     public string[] clip_load_list { get; set; } = {
-        "[clip - mlfoundations - ViT-B-32--openai]",
-//        "[clip - mlfoundations - ViT-B-16--openai]",
+//        "[clip - mlfoundations - ViT-B-32--openai]",
+        "[clip - mlfoundations - ViT-B-16--openai]",
 //        "[clip - mlfoundations - ViT-B-16--laion400m_e32]",
         "[clip - mlfoundations - ViT-L-14--openai]",
 //        "[clip - mlfoundations - RN50x4--openai]",
 //        "[clip - mlfoundations - RN50x64--openai]",
 //        "[clip - mlfoundations - RN50x16--openai]",
 //        "[clip - mlfoundations - ViT-L-14-336--openai]",
-        "[clip - mlfoundations - ViT-B-16-plus-240--laion400m_e32]",
-//        "[clip - mlfoundations - ViT-B-32--laion2b_e16]",
+//        "[clip - mlfoundations - ViT-B-16-plus-240--laion400m_e32]",
+        "[clip - mlfoundations - ViT-B-32--laion2b_e16]",
 //        "[clip - sajjjadayobi - clipfa]",
 //        "[clip - navervision - kelip_ViT-B/32]",
 //        "[cloob - crowsonkb - cloob_laion_400m_vit_b_16_32_epochs]"

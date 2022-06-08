@@ -186,7 +186,7 @@ namespace NightmareBot.Modules
                                 .WithTitle("Majesty Diffusion Dreamer Request")
                                 .WithCustomId("majesty-diffusion")
                                 .AddTextInput("Prompt", "prompt", value: prompt, style: TextInputStyle.Paragraph, required: true)
-                                .AddTextInput("Negative Prompt", "negative_prompt", value: "low quality image", required: false)
+                                .AddTextInput("Negative Prompt", "negative_prompt", value: "", placeholder: "optional, things to avoid", required: false)
                                 .AddTextInput("Image Prompt", "init_image", value: "", required: false, placeholder: "image url");
                             await RespondWithModalAsync(modalBuilder.Build());
                         }
@@ -610,7 +610,7 @@ namespace NightmareBot.Modules
                     .WithTitle("Majesty Diffusion Dreamer Request")
                     .WithCustomId("majesty-diffusion")
                     .AddTextInput("Prompt", "prompt", value: prompt, style: TextInputStyle.Paragraph, required: true)
-                    .AddTextInput("Negative Prompt", "negative_prompt", value: "low quality image", required: false)
+                    .AddTextInput("Negative Prompt", "negative_prompt", placeholder: "optional (things to avoid)", required: false)
                     .AddTextInput("Initial Image", "init_image", value: imageUrl, required: false, placeholder: "image url");
                 await RespondWithModalAsync(modalBuilder.Build());
 
