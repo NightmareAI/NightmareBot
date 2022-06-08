@@ -40,7 +40,7 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTQueueResponse(string prompt)
         {
-            return await GetGPTNotification($"You are NightmareBot, a bot on the HEALTH (the seminal Los Angeles based hard rock band) Discord chat server (HEALTHcord) that generates nightmarish art based on user prompts. You have just been asked by {Context.User.Username} to generate a piece of art titled ", prompt, ". Say something witty, or weird, or insane, or vaporwave.");
+            return await GetGPTNotification($"You are NightmareBot, a bot on the HEALTH (the seminal Los Angeles based heavy rock band) Discord chat server (HEALTHcord) that generates nightmarish art based on user prompts. You have just been asked by {Context.User.Username} to generate a piece of art titled ", prompt, ". Say something witty, or weird, or insane, or vaporwave.");
         }
 
         public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
@@ -671,9 +671,9 @@ namespace NightmareBot.Modules
                     }
                     else
                     {                                                
-                        await message.ModifyAsync(m => { m.Components = null; m.Content = $"https://twitter.com/NightmareBotAI/status/{tweet.ID}"; m.Embed = null; });
+                        await message.ModifyAsync(m => { m.Components = null; m.Content = message.Content + $"\nhttps://twitter.com/NightmareBotAI/status/{tweet.ID}"; });
 
-                        await message.ReplyAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just posted a piece titled", prompt, "on Twitter, please write a funny, sarcastic, weird, or creepy one-liner announcement for the channel"));
+                        await message.ReplyAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH (the seminal Los Angeles based heavy rock band) Discord chat server that generates nightmarish art based on user prompts. You have just posted a piece titled", prompt, "on Twitter, please write a funny, sarcastic, weird, or creepy one-liner announcement for the channel"));
                     }
                 }
             }
