@@ -6,7 +6,7 @@ public class MajestyDiffusionInput : IGeneratorInput
 {
     public string[] clip_prompts { get; set; } = { "nightmarebot loves you" };
     public string[] latent_prompts { get; set; } = { "nightmarebot loves you" };
-    public string[] latent_negatives { get; set; } = { "low quality image" };
+    public string[] latent_negatives { get; set; } = { };
     public string[] image_prompts { get; set; } = { };
 
     public int n_samples { get; set; } = 1;
@@ -40,11 +40,11 @@ public class MajestyDiffusionInput : IGeneratorInput
 };
     public bool use_cond_fn { get; set; } = true;
     public string custom_schedule_setting { get; set; } = @"[
-        [200, 1000, 8],
-        [50,200,5],
+        [50, 1000, 8],
+        [5,200,5],
 #        'gfpgan:1.0',
 #        'latent:1.5',
-        [1, 50, 5]
+#        [1, 50, 5]
         ]";
 
 
@@ -81,15 +81,18 @@ public class MajestyDiffusionInput : IGeneratorInput
     custom_schedule_setting = {custom_schedule_setting}
 
     #Cut settings
-    clamp_index = [0.8]*1000
+    clamp_index = [2, 1.4]
     cut_overview = [8]*500 + [4]*500
     cut_innercut = [0]*500 + [4]*500
     cut_ic_pow = 0.1
     cut_icgray_p = [0.1]*300 + [0]*1000
     cutn_batches = 1
-    range_index = [0]*1300
+    cut_blur_n = [0] * 400 + [0] * 600
+    cut_blur_kernel = 3
+    range_index = [0]*1000
     active_function = 'softsign'
-    tv_scales = [1200]*1 + [600]*3
+    ths_method = 'softsign'
+    tv_scales = [600] * 1 + [50] * 1 + [0] * 2
     latent_tv_loss = True
 
     #If you uncomment this line you can schedule the CLIP guidance across the steps. Otherwise the clip_guidance_scale will be used
@@ -100,17 +103,21 @@ public class MajestyDiffusionInput : IGeneratorInput
 
     #Latent Diffusion Advanced Settings
     #Use when latent upscale to correct satuation problem
-    scale_div = 0.5
+    scale_div = 1
     #Magnify grad before clamping by how many times
     opt_mag_mul = 15
-    opt_ddim_eta = 1.4
-    opt_eta_end = 1.0
-    opt_temperature = 0.975
+    opt_ddim_eta = 1.5
+    opt_eta_end = 1.2
+    opt_temperature = 0.95
 
     #Grad advanced settings
     grad_center = False
     #Lower value result in more coherent and detailed result, higher value makes it focus on more dominent concept
     grad_scale=0.5
+    score_modifier = True
+    threshold_percentile = 0.9
+    threshold = 1.2
+    var_index = [0] * 1000
 
     #Init image advanced settings
     init_rotate=False
@@ -123,5 +130,19 @@ public class MajestyDiffusionInput : IGeneratorInput
     #How to pad the image with cut_overview
     padargs = {{'mode': 'constant', 'value': -1}} 
     flip_aug=False
-    cc = 60";
+    
+    #Experimental aesthetic embeddings, work only with OpenAI ViT-B/32 and ViT-L/14
+    experimental_aesthetic_embeddings = True
+    #How much you want this to influence your result
+    experimental_aesthetic_embeddings_weight = 0.3
+    #9 are good aesthetic embeddings, 0 are bad ones
+    experimental_aesthetic_embeddings_score = 8
+
+    # For fun dont change except if you really know what your are doing
+    grad_blur = False
+    compress_steps = 0
+    compress_factor = 0.1
+    punish_steps = 0
+    punish_factor = 0.8
+";
 }
