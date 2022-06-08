@@ -30,7 +30,7 @@ namespace NightmareBot.Modules
         {
             try
             {
-                return await GetGPTResult($"Describe the artwork titled \"{prompt}\" using as few words as possible:\n\n", prompt, max_tokens, 0.7, 0.5, 0.3);
+                return await GetGPTResult($"Describe the artwork titled \"{prompt}\" using as few words as possible:\n\n", prompt, max_tokens, 0.9, 2.0, 2.0);
             }
             catch
             {
@@ -57,7 +57,7 @@ namespace NightmareBot.Modules
             }
         }
 
-        private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75, double temperature = 0.8, double presence = 0, double frequency = 0, string model="text-curie-001" )
+        private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75, double temperature = 0.9, double presence = 1.0, double frequency = 1.0, string model="text-curie-001" )
         {
             var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: temperature, presencePenalty: presence, frequencyPenalty: frequency, engine: new Engine("text-curie-001"));
             var response = generated.Completions.First().Text.Trim().Trim('"');
