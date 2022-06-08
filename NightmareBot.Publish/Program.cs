@@ -43,8 +43,13 @@ if (Directory.Exists("/result/pixray"))
     ulong.TryParse(context.user, out var user_id);
 
     var builder = new ComponentBuilder();
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance:{id},output.png").WithLabel("Enhance"));
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Primary).WithCustomId($"enhance-face:{id},output.png").WithLabel("Enhance+Face"));
+    builder.WithSelectMenu
+        ($"enhance-select-direct:{id},output.png", new List<SelectMenuOptionBuilder>
+        {
+            new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
+        }, minValues: 1, maxValues: 1, placeholder: "Enhance");
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},output.png").WithLabel("Dream"));
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray-init:{id},output.png").WithLabel("Pixray"));
 
