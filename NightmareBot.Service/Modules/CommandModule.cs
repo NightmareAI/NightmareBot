@@ -59,7 +59,7 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTResult(string gptPrompt, string prompt, int max_tokens = 75)
         {
-            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("curie-instruct-beta"));
+            var generated = await _openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: max_tokens, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-curie-001"));
             var response = generated.Completions.First().Text.Trim().Trim('"');
             if (response.StartsWith(prompt + '"', StringComparison.InvariantCultureIgnoreCase))
                 response = '"' + response;
@@ -675,7 +675,7 @@ namespace NightmareBot.Modules
                     {                                                
                         await message.ModifyAsync(m => { m.Components = null; m.Content = message.Content + $"\nhttps://twitter.com/NightmareBotAI/status/{tweet.ID}"; });
 
-                        await message.ReplyAsync(await GetGPTNotification("You are NightmareBot, a bot on the HEALTH (the seminal Los Angeles based heavy rock band) Discord chat server that generates nightmarish art based on user prompts. You have just posted a piece titled", prompt, "on Twitter, please write a funny, sarcastic, weird, or creepy one-liner announcement for the channel"));
+                        await message.ReplyAsync(await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art based on user prompts. You have just posted a piece titled", prompt, $"on Twitter, please write a funny, sarcastic, weird, or creepy announcement for the {Context.Channel.Name} channel"));
                     }
                 }
             }
