@@ -11,7 +11,7 @@ async Task<string> GPT3Announce(string prompt)
 {
     try
     {
-        var gptPrompt = $"You are NightmareBot, a bot on the HEALTH Discord chat server that generates nightmarish art based on user prompts. You have just completed a piece of art titled \"{prompt}\". Please generate a funny, sarcastic, or weird description:";
+        var gptPrompt = $"You have just completed a piece of art titled \"{prompt}\". Please generate a funny, sarcastic, or weird description:";
         var generated = await openAI.CompletionEndpoint.CreateCompletionAsync(gptPrompt, max_tokens: 75, temperature: 0.90, presencePenalty: 0, frequencyPenalty: 0, engine: new Engine("text-davinci-002"));
         var response = generated.Completions.First().Text.Trim().Trim('"');
         if (response.StartsWith(prompt + '"', StringComparison.InvariantCultureIgnoreCase))

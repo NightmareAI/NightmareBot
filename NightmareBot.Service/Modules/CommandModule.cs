@@ -40,14 +40,14 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTQueueResponse(string prompt)
         {
-            return await GetGPTNotification($"You are NightmareBot, a bot on the HEALTH (the seminal Los Angeles based heavy rock band) Discord chat server (HEALTHcord) that generates nightmarish art based on user prompts. You have just been asked by {Context.User.Username} to generate a piece of art titled ", prompt, ". Say something witty, or weird, or insane, or vaporwave.");
+            return await GetGPTNotification($"You have just been asked by {Context.User.Username} to generate a piece of art titled ", prompt, ". Say something witty:");
         }
 
         public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
         {
             try
             {
-                var response = await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt, 150);
+                var response = await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt, 75);
 
                 return response;
             }
