@@ -111,7 +111,7 @@ namespace NightmareBot.Modules
 
             var response = await GetGPTQueueResponse(prompt);
 
-            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n *Generated Prompt*\n```{newPrompt}```");
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{prompt}*\n```{newPrompt}```");
 
         }
 
@@ -240,7 +240,7 @@ namespace NightmareBot.Modules
             await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", input.prompts);
             await Enqueue(request);
             var response = await GetGPTQueueResponse(input.prompts);
-            await ModifyOriginalResponseAsync(m => m.Content = $"{response}\n ```{input.settings}```");
+            await ModifyOriginalResponseAsync(m => m.Content = $"{response}\n\n *{input.prompts}*\n ```{input.settings}```");
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `pixray` dream\n ```{input.settings}```"));            
         }
 
@@ -356,7 +356,7 @@ namespace NightmareBot.Modules
             await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", modal.Prompt);
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
             await Enqueue(request);
-            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n *Generated Prompt*\n```{gptPrompt}```");
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{modal.Prompt}*\n```{gptPrompt}```");
         }
 
         [ComponentInteraction("enhance-face:*,*")]
