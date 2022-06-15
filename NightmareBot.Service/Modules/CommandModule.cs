@@ -768,13 +768,14 @@ namespace NightmareBot.Modules
                         {
                             if (pod.Value.MinimumBidPrice.HasValue)
                             {
-                                await _runPodClient.StartSpotPod(pod.Key.Id, pod.Value.MinimumBidPrice.Value);
+                                var startResult = await _runPodClient.StartSpotPod(pod.Key.Id, pod.Value.MinimumBidPrice.Value + .01f);
+                                _logger.LogInformation($"Started pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + 0.01f}/hr: {startResult}");
                                 break;
                             }
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, $"Failed to start pod {pod.Key.Id} at {pod.Value.MinimumBidPrice}");
+                            _logger.LogError(ex, $"Failed to start pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + .01f}/hr");
                         }
                     }                    
                 }
