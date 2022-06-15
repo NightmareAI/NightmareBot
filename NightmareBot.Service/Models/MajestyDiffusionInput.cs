@@ -26,7 +26,7 @@ public class MajestyDiffusionInput : IGeneratorInput
     public string[] clip_load_list { get; set; } = {
 //        "[clip - mlfoundations - ViT-B-32--openai]",
         "[clip - mlfoundations - ViT-B-16--openai]",
-//        "[clip - mlfoundations - ViT-B-16--laion400m_e32]",
+        "[clip - mlfoundations - ViT-B-16--laion400m_e32]",
         "[clip - mlfoundations - ViT-L-14--openai]",
 //        "[clip - mlfoundations - RN50x4--openai]",
 //        "[clip - mlfoundations - RN50x64--openai]",

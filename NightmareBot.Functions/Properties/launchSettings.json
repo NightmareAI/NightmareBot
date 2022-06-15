@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "NightmareBot.Functions": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "httpPort": 32306,
+      "useSSL": false
+    }
+  }
+}

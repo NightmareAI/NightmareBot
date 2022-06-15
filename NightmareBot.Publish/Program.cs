@@ -1,7 +1,10 @@
-﻿using Discord;
+﻿using Azure.Messaging.ServiceBus;
+using Discord;
 using Discord.Rest;
+using Minio;
 using NightmareBot.Common;
 using OpenAI;
+using System.Text.Json;
 
 var discord = new DiscordRestClient();
 await discord.LoginAsync(Discord.TokenType.Bot, Environment.GetEnvironmentVariable("NIGHTMAREBOT_TOKEN"));
@@ -109,51 +112,13 @@ else if (Directory.Exists("/result/majesty"))
 {
     var context = System.Text.Json.JsonSerializer.Deserialize<DiscordContext>(File.OpenRead("/tmp/majesty/context.json"));
     var prompt = File.ReadAllText("/tmp/majesty/prompt.txt");   
-    var id = File.ReadAllText("/tmp/majesty/id.txt");    
-
-    if (context == null)
-        return;
-    ulong.TryParse(context.guild, out var guild_id);
-    ulong.TryParse(context.channel, out var channel_id);
-    ulong.TryParse(context.message, out var message_id);
-    ulong.TryParse(context.user, out var user_id);
+    var id = File.ReadAllText("/tmp/majesty/id.txt");
 
     var images = Directory.GetFiles("/result/majesty", "*.png");
     var filename = Path.GetFileName(images[0]);
-    
-    
-    var builder = new ComponentBuilder();
-    builder.WithSelectMenu
-        ($"enhance-select-direct:{id},{filename}", new List<SelectMenuOptionBuilder>
-        {
-            new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
-            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
-            new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
-        }, minValues: 1, maxValues: 1, placeholder: "Enhance");
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},{filename}").WithLabel("Dream"));
-    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{id},{filename}").WithLabel("Pixray"));
 
-
-    var guild = await discord.GetGuildAsync(guild_id);
-    if (guild == null)
-    {
-        Console.WriteLine("Unable to get guild from discord");
-        return;
-    }
-
-    var channel = await guild.GetTextChannelAsync(channel_id);
-    var user = await channel.GetUserAsync(user_id);
-    
-        
-    using var typingState = channel.EnterTypingState();
-    var embed = new EmbedBuilder();
-    embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{filename}").WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).WithFooter("Generated with majesty-diffusion").WithCurrentTimestamp().WithDescription(await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty));
-
-    if (user != null)
-        embed.WithAuthor(new EmbedAuthorBuilder().WithName(user.Username).WithIconUrl(user.GetDisplayAvatarUrl()));
-
-    var message = MentionUtils.MentionUser(user_id);    
-    await channel.SendMessageAsync(message, components: builder.Build(), embed: embed.Build());
+    if (context != null)
+        await MajestyRespond(id, context, prompt, filename);
 }
 else if (Directory.Exists("/result/latent-diffusion"))
 {
@@ -255,4 +220,48 @@ else if (Directory.Exists("/result/enhance"))
     message += MentionUtils.MentionUser(user_id);
     await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
 
+}
+
+
+async Task MajestyRespond(string id, DiscordContext context, string prompt, string filename)
+{
+    if (context == null)
+        return;
+    ulong.TryParse(context.guild, out var guild_id);
+    ulong.TryParse(context.channel, out var channel_id);
+    ulong.TryParse(context.message, out var message_id);
+    ulong.TryParse(context.user, out var user_id);
+
+    var builder = new ComponentBuilder();
+    builder.WithSelectMenu
+        ($"enhance-select-direct:{id},{filename}", new List<SelectMenuOptionBuilder>
+        {
+            new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
+        }, minValues: 1, maxValues: 1, placeholder: "Enhance");
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},{filename}").WithLabel("Dream"));
+    builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{id},{filename}").WithLabel("Pixray"));
+
+
+    var guild = await discord.GetGuildAsync(guild_id);
+    if (guild == null)
+    {
+        Console.WriteLine("Unable to get guild from discord");
+        return;
+    }
+
+    var channel = await guild.GetTextChannelAsync(channel_id);
+    var user = await channel.GetUserAsync(user_id);
+
+
+    using var typingState = channel.EnterTypingState();
+    var embed = new EmbedBuilder();
+    embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{filename}").WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).WithFooter("Generated with majesty-diffusion").WithCurrentTimestamp().WithDescription(await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty));
+
+    if (user != null)
+        embed.WithAuthor(new EmbedAuthorBuilder().WithName(user.Username).WithIconUrl(user.GetDisplayAvatarUrl()));
+
+    var message = MentionUtils.MentionUser(user_id);
+    await channel.SendMessageAsync(message, components: builder.Build(), embed: embed.Build());
 }

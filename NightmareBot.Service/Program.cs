@@ -1,3 +1,5 @@
+using Azure.Messaging.ServiceBus;
+using Azure.Storage.Queues;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
@@ -18,7 +20,7 @@ builder.Services.AddOpenTelemetryTracing(x =>
     x.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("NightmareBot"));
     x.AddAspNetCoreInstrumentation();
     x.AddHttpClientInstrumentation();
-    x.AddConsoleExporter();
+    //x.AddConsoleExporter();
 });
 
 builder.Services.AddSingleton<BotLogger>();
@@ -31,6 +33,7 @@ builder.Services.AddSingleton(x => new InteractionService(x.GetRequiredService<D
 builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
 builder.Services.AddSingleton(x => new OpenAIClient(OpenAIAuthentication.LoadFromEnv()));
+builder.Services.AddSingleton(x => new ServiceBusClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_SERVICEBUS_CONNECTION_STRING")));
 //builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
 
 // Twitter

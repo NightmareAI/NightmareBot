@@ -12,6 +12,10 @@ using OpenAI;
 using System.Text;
 using SixLabors.ImageSharp.Processing;
 using NightmareBot.Common;
+using Azure.Messaging.ServiceBus;
+using Azure.Storage.Queues;
+using System.Diagnostics;
+using System.Text.Json;
 
 namespace NightmareBot.Modules
 {
@@ -22,9 +26,10 @@ namespace NightmareBot.Modules
         private readonly ILogger<CommandModule> _logger;
         private readonly TwitterContext _twitter;
         private readonly MinioClient _minioClient;
-        private readonly OpenAIClient _openAI;        
+        private readonly OpenAIClient _openAI;
+        private readonly ServiceBusClient _serviceBusClient;
 
-        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; }
+        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient, ServiceBusClient serviceBusClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; _serviceBusClient = serviceBusClient; }
 
         public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 64)
         {
@@ -401,8 +406,7 @@ namespace NightmareBot.Modules
 
                 await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{request.id}", prompt);
                 await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
-                await _daprClient.SaveStateAsync(Names.StateStore, request.id.ToString(), request);
-                await DeferAsync();
+                await _daprClient.SaveStateAsync(Names.StateStore, request.id.ToString(), request);                
             }
             catch (Exception ex)
             {
@@ -686,11 +690,79 @@ namespace NightmareBot.Modules
             }
         }
 
+        private async Task<string> ExecuteVastClient(string args)
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = @"python", Arguments = $"C:\\Users\\palp\\bin\\vast.py {args} --raw" };
+            startInfo.UseShellExecute = false;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.CreateNoWindow = true;
+            var proc = new Process { StartInfo = startInfo };
+            proc.Start();
+            return await proc.StandardOutput.ReadToEndAsync();
+        }
+
         private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput, new()
         {
             await _daprClient.SaveStateAsync(Names.StateStore, $"request-{request.id}", request.request_state);
             await _daprClient.SaveStateAsync(Names.StateStore, $"context-{request.id}", request.context);
-            await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
+            
+            if (typeof(T) == typeof(MajestyDiffusionInput))
+            {/*
+                try
+                {
+                    var instances = JsonSerializer.Deserialize<List<JsonElement>>(await ExecuteVastClient("show instances"));
+                    var selectedInstances = instances?.Where(i => i.GetString("label") == "fast-dreamer");
+                    if (selectedInstances != null)
+                    {
+                        if (selectedInstances.All(i => i.GetString("actual_status") != "running" && i.GetString("next_state") != "running"))
+                        {
+                            // Start the first instance, for now this is good enough hopefully
+                            var instanceId = selectedInstances.First().GetString("id");
+                            var result = await ExecuteVastClient($"start instance {instanceId}");
+                            _logger.LogInformation(result);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Found a running instance, continuing...");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to check workers");
+                }
+                */
+
+                //var queueClient = new QueueClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_STORAGE_CONNECTION_STRING"), "fast-dreamer");                
+                //await queueClient.CreateIfNotExistsAsync();
+                //await queueClient.SendMessageAsync(System.Text.Json.JsonSerializer.Serialize(request.request_state));
+                
+                // Check for running pod, this is a hack for now
+                ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = @"C:\Users\palp\bin\runpodctl.exe", Arguments = "get pods" };
+                startInfo.UseShellExecute = false;
+                startInfo.RedirectStandardOutput = true;
+                startInfo.CreateNoWindow = true;
+                var proc = new Process { StartInfo = startInfo };                
+                proc.Start();
+
+                var output = await proc.StandardOutput.ReadToEndAsync();
+                if (!output.Contains("RUNNING"))
+                {
+                    startInfo.Arguments = "start pod 8ou6nbwgdt1uta";
+                    proc = new Process { StartInfo = startInfo };
+                    proc.Start();
+                    _logger.LogInformation(await proc.StandardOutput.ReadToEndAsync());
+                }
+                
+                var sender = _serviceBusClient.CreateSender("fast-dreamer");
+                await sender.SendMessageAsync(new ServiceBusMessage(request.id.ToString()) { SessionId = Context.Channel.Id.ToString() });
+
+            }
+            else
+            {
+                await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
+            }
+            
             await _daprClient.SaveStateAsync(Names.StateStore, request.id.ToString(), request);
         }
 
