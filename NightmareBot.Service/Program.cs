@@ -6,6 +6,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using LinqToTwitter.OAuth;
 using NightmareBot;
+using NightmareBot.Common.RunPod;
 using NightmareBot.Handlers;
 using OpenAI;
 using OpenTelemetry.Resources;
@@ -34,6 +35,7 @@ builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
 builder.Services.AddSingleton(x => new OpenAIClient(OpenAIAuthentication.LoadFromEnv()));
 builder.Services.AddSingleton(x => new ServiceBusClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_SERVICEBUS_CONNECTION_STRING")));
+builder.Services.AddSingleton(x => new RunPodApiClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_RUNPOD_KEY") ?? String.Empty));
 //builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
 
 // Twitter

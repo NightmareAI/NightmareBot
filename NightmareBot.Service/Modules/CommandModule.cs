@@ -16,6 +16,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Storage.Queues;
 using System.Diagnostics;
 using System.Text.Json;
+using NightmareBot.Common.RunPod;
 
 namespace NightmareBot.Modules
 {
@@ -28,8 +29,9 @@ namespace NightmareBot.Modules
         private readonly MinioClient _minioClient;
         private readonly OpenAIClient _openAI;
         private readonly ServiceBusClient _serviceBusClient;
+        private readonly RunPodApiClient _runPodClient;
 
-        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient, ServiceBusClient serviceBusClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; _serviceBusClient = serviceBusClient; }
+        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient, ServiceBusClient serviceBusClient, RunPodApiClient runPodApiClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; _serviceBusClient = serviceBusClient; _runPodClient = runPodApiClient; }
 
         public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 64)
         {
@@ -736,8 +738,9 @@ namespace NightmareBot.Modules
                 //var queueClient = new QueueClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_STORAGE_CONNECTION_STRING"), "fast-dreamer");                
                 //await queueClient.CreateIfNotExistsAsync();
                 //await queueClient.SendMessageAsync(System.Text.Json.JsonSerializer.Serialize(request.request_state));
-                
+
                 // Check for running pod, this is a hack for now
+                /*
                 ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = @"C:\Users\palp\bin\runpodctl.exe", Arguments = "get pods" };
                 startInfo.UseShellExecute = false;
                 startInfo.RedirectStandardOutput = true;
@@ -753,7 +756,29 @@ namespace NightmareBot.Modules
                     proc.Start();
                     _logger.LogInformation(await proc.StandardOutput.ReadToEndAsync());
                 }
-                
+                */
+
+                // Do this somewhere better
+                var pods = await _runPodClient.GetPodsWithClouds();
+                if (pods.Keys.All(p => p.DesiredStatus != "RUNNING"))
+                {
+                    foreach (var pod in  pods.OrderBy(p => p.Value.MinimumBidPrice).Where(p => p.Value.MinimumBidPrice != null && p.Value.MinimumBidPrice > 0 && p.Key.DesiredStatus != "RUNNING"))
+                    {
+                        try
+                        {
+                            if (pod.Value.MinimumBidPrice.HasValue)
+                            {
+                                await _runPodClient.StartSpotPod(pod.Key.Id, pod.Value.MinimumBidPrice.Value);
+                                break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Failed to start pod {pod.Key.Id} at {pod.Value.MinimumBidPrice}");
+                        }
+                    }                    
+                }
+
                 var sender = _serviceBusClient.CreateSender("fast-dreamer");
                 await sender.SendMessageAsync(new ServiceBusMessage(request.id.ToString()) { SessionId = Context.Channel.Id.ToString() });
 
