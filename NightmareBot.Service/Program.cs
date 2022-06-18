@@ -5,6 +5,7 @@ using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using LinqToTwitter.OAuth;
+using Microsoft.Azure.Cosmos;
 using NightmareBot;
 using NightmareBot.Common.RunPod;
 using NightmareBot.Handlers;
@@ -30,12 +31,13 @@ builder.Services.AddControllers().AddDapr();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton(x => new DiscordSocketClient(new DiscordSocketConfig() {GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildMembers, AlwaysDownloadUsers = true, UseInteractionSnowflakeDate = false}));
-builder.Services.AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>()));
+builder.Services.AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), new InteractionServiceConfig() { DefaultRunMode = Discord.Interactions.RunMode.Async, UseCompiledLambda = true })) ;
 builder.Services.AddSingleton<CommandService>();
 builder.Services.AddSingleton<CommandHandler>();
 builder.Services.AddSingleton(x => new OpenAIClient(OpenAIAuthentication.LoadFromEnv()));
 builder.Services.AddSingleton(x => new ServiceBusClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_SERVICEBUS_CONNECTION_STRING")));
 builder.Services.AddSingleton(x => new RunPodApiClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_RUNPOD_KEY") ?? String.Empty));
+builder.Services.AddSingleton(x => new CosmosClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_COSMOSDB_CONNECTION_STRING")));
 //builder.Services.AddHostedService( x => x.GetRequiredService<GenerateService>());
 
 // Twitter

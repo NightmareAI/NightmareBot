@@ -1,9 +1,11 @@
-﻿using Dapr.Client;
+﻿using Azure.Messaging.ServiceBus;
+using Dapr.Client;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Minio;
 using NightmareBot.Common;
+using NightmareBot.Common.RunPod;
 using NightmareBot.Models;
 using OpenAI;
 using System.Text;
@@ -17,14 +19,18 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
     private readonly InteractionService _handler;
     private readonly MinioClient _minioClient;
     private readonly OpenAIClient _openAI;
+    private readonly ServiceBusClient _serviceBusClient;
+    private readonly RunPodApiClient _runPodClient;
 
-    public GenerateModel(DaprClient daprClient, InteractionService handler, MinioClient minioClient, OpenAIClient openAI, ILogger<GenerateModel> logger)
+    public GenerateModel(DaprClient daprClient, InteractionService handler, MinioClient minioClient, OpenAIClient openAI, ILogger<GenerateModel> logger, ServiceBusClient serviceBusClient, RunPodApiClient runPodApiClient)
     {        
         _daprClient = daprClient;
         _handler = handler;
         this._minioClient = minioClient;
         _openAI = openAI;
         _logger = logger;
+        _serviceBusClient = serviceBusClient;
+        _runPodClient = runPodApiClient;
     }
 
     [Command("reg")]
@@ -117,7 +123,7 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         await _minioClient.PutObjectAsync(idArgs);
         await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{request.id}", request.request_state.prompt);
         //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
-        await Enqueue(request);
+        await Enqueue(request, true);
         await Context.Message.AddReactionAsync(new Emoji("✔️"));
     }
 
@@ -332,11 +338,45 @@ public class GenerateModel : ModuleBase<SocketCommandContext>
         }
     }
 
-    private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput, new()
+    private async Task Enqueue<T>(PredictionRequest<T> request, bool runpod = false) where T : IGeneratorInput, new()
     {
         await _daprClient.SaveStateAsync(Names.StateStore, $"request-{request.id}", request.request_state);
         await _daprClient.SaveStateAsync(Names.StateStore, $"context-{request.id}", request.context);
-        await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
+
+        if (runpod)
+        {
+            // Do this somewhere better
+            var pods = await _runPodClient.GetPodsWithClouds();
+            foreach (var p in pods) { _logger.LogInformation($"{p.Key.Id}({p.Key.DesiredStatus}) : {p.Value.GpuName} {p.Value.MinimumBidPrice}"); };
+            if (pods.Keys.Any(p => p.DesiredStatus != "RUNNING"))
+            {
+                foreach (var pod in pods.OrderBy(p => p.Value.MinimumBidPrice).Where(p => p.Value.MinimumBidPrice != null && p.Value.MinimumBidPrice > 0 && p.Key.DesiredStatus != "RUNNING"))
+                {
+                    try
+                    {
+                        if (pod.Value.MinimumBidPrice.HasValue)
+                        {
+                            var startResult = await _runPodClient.StartSpotPod(pod.Key.Id, pod.Value.MinimumBidPrice.Value + .01f);
+                            _logger.LogInformation($"Started pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + 0.01f}/hr: {startResult}");
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Failed to start pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + .01f}/hr");
+                    }
+                }
+            }
+
+            var sender = _serviceBusClient.CreateSender("fast-dreamer");
+            await sender.SendMessageAsync(new ServiceBusMessage(request.id.ToString()) { SessionId = Context.User.Id.ToString() });
+
+        }
+        else
+        {
+            await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
+        }
+
         await _daprClient.SaveStateAsync(Names.StateStore, request.id.ToString(), request);
     }
     

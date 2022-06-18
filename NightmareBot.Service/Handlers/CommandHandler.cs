@@ -35,6 +35,7 @@ public class CommandHandler
         _client.InteractionCreated += HandleInteraction;
         _client.Ready += ReadyAsync;
         _serviceProvider = serviceProvider;
+        
         await _commands.AddModulesAsync(assembly: Assembly.GetEntryAssembly(), services: serviceProvider);
         await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), serviceProvider);
     }

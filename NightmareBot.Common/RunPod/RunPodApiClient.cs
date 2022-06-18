@@ -167,7 +167,7 @@ namespace NightmareBot.Common.RunPod
         {
             Dictionary<Pod, Cloud> cloudsByPod = new Dictionary<Pod, Cloud>();
             var pods = await this.GetPodsAsync();
-            if (pods != null && pods.All(p => p.DesiredStatus != "RUNNING"))
+            if (pods != null)
             {
                 var clouds = await this.GetCloudAsync(new GetCloudInput() {  SecureCloud = true });
                 

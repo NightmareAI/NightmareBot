@@ -7,11 +7,17 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Publish", "Nig
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Common", "NightmareBot.Common\NightmareBot.Common.csproj", "{30EDDA84-2ACE-4AB1-A4E4-57E79503CB23}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot", "NightmareBot.Service\NightmareBot.csproj", "{74F9FE6C-542C-41B1-B364-4BEE9408592A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Service", "NightmareBot.Service\NightmareBot.Service.csproj", "{74F9FE6C-542C-41B1-B364-4BEE9408592A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NightmareBot.Functions", "NightmareBot.Functions\NightmareBot.Functions.csproj", "{A737E4B2-D43F-415E-BB03-C20DFB573863}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Functions", "NightmareBot.Functions\NightmareBot.Functions.csproj", "{A737E4B2-D43F-415E-BB03-C20DFB573863}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NightmareBot.Tests", "NightmareBot.Tests\NightmareBot.Tests.csproj", "{67F77BAB-05A6-4CCF-B0A0-D0A1FB93C7B9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Tests", "NightmareBot.Tests\NightmareBot.Tests.csproj", "{67F77BAB-05A6-4CCF-B0A0-D0A1FB93C7B9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Web.Server", "NightmareBot.Web\Server\NightmareBot.Web.Server.csproj", "{6253D17F-97CA-4F10-8E54-C67B79EC6CF6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Web.Client", "NightmareBot.Web\Client\NightmareBot.Web.Client.csproj", "{A935E1B3-3154-45BE-A188-9C2B19893196}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NightmareBot.Web.Shared", "NightmareBot.Web\Shared\NightmareBot.Web.Shared.csproj", "{9978B39C-E79D-4EAE-BC5E-8337C6814504}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +45,18 @@ Global
 		{67F77BAB-05A6-4CCF-B0A0-D0A1FB93C7B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{67F77BAB-05A6-4CCF-B0A0-D0A1FB93C7B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{67F77BAB-05A6-4CCF-B0A0-D0A1FB93C7B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6253D17F-97CA-4F10-8E54-C67B79EC6CF6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6253D17F-97CA-4F10-8E54-C67B79EC6CF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6253D17F-97CA-4F10-8E54-C67B79EC6CF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6253D17F-97CA-4F10-8E54-C67B79EC6CF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A935E1B3-3154-45BE-A188-9C2B19893196}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A935E1B3-3154-45BE-A188-9C2B19893196}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A935E1B3-3154-45BE-A188-9C2B19893196}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A935E1B3-3154-45BE-A188-9C2B19893196}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9978B39C-E79D-4EAE-BC5E-8337C6814504}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9978B39C-E79D-4EAE-BC5E-8337C6814504}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9978B39C-E79D-4EAE-BC5E-8337C6814504}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9978B39C-E79D-4EAE-BC5E-8337C6814504}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

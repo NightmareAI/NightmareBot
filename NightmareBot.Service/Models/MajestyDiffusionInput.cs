@@ -9,29 +9,30 @@ public class MajestyDiffusionInput : IGeneratorInput
     public string[] latent_negatives { get; set; } = { };
     public string[] image_prompts { get; set; } = { };
 
+    public string latent_diffusion_model { get; set; } = "finetuned";
+
     public int n_samples { get; set; } = 1;
-    public int height { get; set; } = 640;
-    public int width { get; set; } = 448;
-    public float latent_diffusion_guidance_scale { get; set; } = 8.82f;
-    public int clip_guidance_scale { get; set; } = 5000;
+    public int height { get; set; } = 384;
+    public int width { get; set; } = 256;
+    public float latent_diffusion_guidance_scale { get; set; } = 12f;
+    public int clip_guidance_scale { get; set; } = 16000;
     public int how_many_batches { get; set; } = 1;
-    public int aesthetic_loss_scale { get; set; } = 200;
+    public int aesthetic_loss_scale { get; set; } = 400;
     public bool augment_cuts { get; set; } = true;
     public string? init_image { get; set; } = "";
     public float starting_timestep { get; set; } = 0.9f;
     public string? init_mask { get; set; }
-    public int init_scale { get; set; } = 0;
+    public int init_scale { get; set; } = 1000;
     public float init_brightness { get; set; } = 0.0f;
-    public float init_noise { get; set; } = 0.6f;
     public string[] clip_load_list { get; set; } = {
 //        "[clip - mlfoundations - ViT-B-32--openai]",
         "[clip - mlfoundations - ViT-B-16--openai]",
-        "[clip - mlfoundations - ViT-B-16--laion400m_e32]",
-        "[clip - mlfoundations - ViT-L-14--openai]",
+//        "[clip - mlfoundations - ViT-B-16--laion400m_e32]",
+//        "[clip - mlfoundations - ViT-L-14--openai]",
 //        "[clip - mlfoundations - RN50x4--openai]",
 //        "[clip - mlfoundations - RN50x64--openai]",
 //        "[clip - mlfoundations - RN50x16--openai]",
-//        "[clip - mlfoundations - ViT-L-14-336--openai]",
+        "[clip - mlfoundations - ViT-L-14-336--openai]",
 //        "[clip - mlfoundations - ViT-B-16-plus-240--laion400m_e32]",
         "[clip - mlfoundations - ViT-B-32--laion2b_e16]",
 //        "[clip - sajjjadayobi - clipfa]",
@@ -41,13 +42,9 @@ public class MajestyDiffusionInput : IGeneratorInput
     public bool use_cond_fn { get; set; } = true;
     public string custom_schedule_setting { get; set; } = @"[
         [50, 1000, 8],
-        [5,200,5],
-#        'gfpgan:1.0',
-#        'latent:1.5',
-#        [1, 50, 5]
+        'gfpgan:2.0','scale:.9','noise:.75',
+        [5,200,4],
         ]";
-
-
 
     public string settings => @$"
     #This settings file can be loaded back to Latent Majesty Diffusion. If you like your setting consider sharing it to the settings library at https://github.com/multimodalart/MajestyDiffusion
@@ -66,12 +63,13 @@ public class MajestyDiffusionInput : IGeneratorInput
     clip_guidance_scale = {clip_guidance_scale}
     aesthetic_loss_scale = {aesthetic_loss_scale}
     augment_cuts={augment_cuts}
+    latent_diffusion_model= '{latent_diffusion_model}'
+
 
     #Init image settings
     starting_timestep = {starting_timestep}
     init_scale = {init_scale} 
     init_brightness = {init_brightness}
-    init_noise = {init_noise}
 
     [advanced_settings]
     #Add CLIP Guidance and all the flavors or just run normal Latent Diffusion
@@ -81,22 +79,22 @@ public class MajestyDiffusionInput : IGeneratorInput
     custom_schedule_setting = {custom_schedule_setting}
 
     #Cut settings
-    clamp_index = [2, 1.4]
+    clamp_index = [2.4, 2.1]
     cut_overview = [8]*500 + [4]*500
     cut_innercut = [0]*500 + [4]*500
-    cut_ic_pow = 0.1
+    cut_ic_pow = 0.2
     cut_icgray_p = [0.1]*300 + [0]*1000
     cutn_batches = 1
-    cut_blur_n = [0] * 400 + [0] * 600
+    cut_blur_n = [0] * 300 + [0] * 1000
     cut_blur_kernel = 3
-    range_index = [0]*1000
+    range_index = [0]*200+[5e4]*400+[0]*1000
     active_function = 'softsign'
     ths_method = 'softsign'
     tv_scales = [600] * 1 + [50] * 1 + [0] * 2
-    latent_tv_loss = True
+    
 
     #If you uncomment this line you can schedule the CLIP guidance across the steps. Otherwise the clip_guidance_scale will be used
-    clip_guidance_schedule = [5000]*1000
+    # clip_guidance_schedule = [10000]*300 + [500]*700
     
     #Apply symmetric loss (force simmetry to your results)
     symmetric_loss_scale = 0 
@@ -105,19 +103,22 @@ public class MajestyDiffusionInput : IGeneratorInput
     #Use when latent upscale to correct satuation problem
     scale_div = 1
     #Magnify grad before clamping by how many times
-    opt_mag_mul = 15
-    opt_ddim_eta = 1.5
-    opt_eta_end = 1.2
-    opt_temperature = 0.95
+    opt_mag_mul = 20
+    opt_plms = False
+    opt_ddim_eta = 1.3
+    opt_eta_end = 1.1
+    opt_temperature = 0.98
 
     #Grad advanced settings
     grad_center = False
     #Lower value result in more coherent and detailed result, higher value makes it focus on more dominent concept
-    grad_scale=0.5
+    grad_scale=0.25
     score_modifier = True
-    threshold_percentile = 0.9
-    threshold = 1.2
-    var_index = [0] * 1000
+    threshold_percentile = 0.85
+    threshold = 1
+    var_index = [2]*300+[0]*700
+    mean_index = [0]*400+[0]*600
+    mean_range = 0.75
 
     #Init image advanced settings
     init_rotate=False
@@ -140,9 +141,9 @@ public class MajestyDiffusionInput : IGeneratorInput
 
     # For fun dont change except if you really know what your are doing
     grad_blur = False
-    compress_steps = 0
+    compress_steps = 200
     compress_factor = 0.1
-    punish_steps = 0
-    punish_factor = 0.8
-";
+    punish_steps = 200
+    punish_factor = 0.5
+".Replace("%","%%");
 }

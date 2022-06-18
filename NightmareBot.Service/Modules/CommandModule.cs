@@ -17,6 +17,7 @@ using Azure.Storage.Queues;
 using System.Diagnostics;
 using System.Text.Json;
 using NightmareBot.Common.RunPod;
+using Microsoft.Azure.Cosmos;
 
 namespace NightmareBot.Modules
 {
@@ -30,14 +31,15 @@ namespace NightmareBot.Modules
         private readonly OpenAIClient _openAI;
         private readonly ServiceBusClient _serviceBusClient;
         private readonly RunPodApiClient _runPodClient;
+        private readonly CosmosClient _cosmosClient;
 
-        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient, ServiceBusClient serviceBusClient, RunPodApiClient runPodApiClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; _serviceBusClient = serviceBusClient; _runPodClient = runPodApiClient; }
+        public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient, ServiceBusClient serviceBusClient, RunPodApiClient runPodApiClient, CosmosClient cosmosClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; _serviceBusClient = serviceBusClient; _runPodClient = runPodApiClient; _cosmosClient = cosmosClient; }
 
         public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 64)
         {
             try
             {
-                return await GetGPTResult($"Describe the artwork titled \"{prompt}\" using as few words as possible:\n\n", prompt, max_tokens, 0.9, 2.0, 2.0);
+                return await GetGPTResult($"Describe the visual style of an image titled \"{prompt}\":\n\n", prompt, max_tokens, 0.9, 2.0, 2.0);
             }
             catch
             {
@@ -45,9 +47,9 @@ namespace NightmareBot.Modules
             }
         }
 
-        private async Task<string> GetGPTQueueResponse(string prompt)
+        private async Task<string> GetGPTQueueResponse(string prompt, string description = "a piece of art titled")
         {
-            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate a piece of art titled ", prompt, ". What is your response?");
+            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate {description} ", prompt, ". What is your response?");
         }
 
         public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
@@ -77,21 +79,115 @@ namespace NightmareBot.Modules
             return response;
         }
 
-        [SlashCommand("gptdream", "Generates a nightmare using AI assisted prompt generation", runMode: RunMode.Async)]
-        public async Task GptDreamAsync(string prompt)
+        [SlashCommand("majesty", "Advanced access to majesty-diffusion")]        
+        public async Task MajestyAsync(string prompt, LatentDiffusionModelType model = LatentDiffusionModelType.Finetuned)
+        {
+            var input = new MajestyDiffusionInput();
+            input.clip_prompts = input.latent_prompts = new[] { prompt };
+            input.latent_diffusion_model = GetModelName(model);
+            var modalBuilder = new ModalBuilder()
+                .WithTitle("Majesty Diffusion Advanced Mode")
+                .WithCustomId("majesty-diffusion-advanced")
+                .AddTextInput("Title (does not change prompt, use settings)", "prompt", value: prompt, style: TextInputStyle.Paragraph, required: true)
+                .AddTextInput("Settings", "settings", value: input.settings, required: true, style: TextInputStyle.Paragraph);                
+            await RespondWithModalAsync(modalBuilder.Build());
+
+        }
+
+        [SlashCommand("nmbstats", "Show stats")]
+        public async Task StatsAsync()
+        {            
+            var container = _cosmosClient.GetDatabase("NightmareBot").GetContainer("statestore");
+            var userStats = await container.GetItemQueryStreamIterator($"SELECT value count(s.id) FROM statestore s  WHERE s['value'].context.user = '{Context.User.Id}' AND IS_DEFINED(s['value'].request_type ) AND s['value'].request_type IN ('majesty-diffusion','latent-diffusion','pixray')").ReadNextAsync();
+            var guildStats = await container.GetItemQueryStreamIterator($"SELECT value count(s.id) FROM statestore s  WHERE s['value'].context.guild = '{Context.Guild.Id}' AND IS_DEFINED(s['value'].request_type ) AND s['value'].request_type IN ('majesty-diffusion','latent-diffusion','pixray')").ReadNextAsync();
+            var globalStats = await container.GetItemQueryStreamIterator($"SELECT value count(s.id) FROM statestore s WHERE IS_DEFINED(s['value'].request_type) AND s['value'].request_type IN ('majesty-diffusion','latent-diffusion','pixray')").ReadNextAsync();
+
+            var message = new StringBuilder();
+            message.AppendLine("**Nightmare Stats**");
+            message.AppendLine($"Global: {JsonSerializer.Deserialize<JsonElement>(globalStats.Content).GetProperty("Documents")[0]} nightmares");
+            message.AppendLine($"{Context.Guild.Name}: {JsonSerializer.Deserialize<JsonElement>(guildStats.Content).GetProperty("Documents")[0]} nightmares");
+            message.AppendLine($"{Context.User.Username}: {JsonSerializer.Deserialize<JsonElement>(userStats.Content).GetProperty("Documents")[0]} nightmares");
+            await RespondAsync(message.ToString());
+        }
+
+        [SlashCommand("nmbqueue", "Show queue status")]
+        public async Task QueueCommandAsync()
         {
             await DeferAsync();
 
+            var receiver = _serviceBusClient.CreateReceiver("fast-dreamer");
+
+            var countsByQueue = new Dictionary<string, int>();
+
+            var seq = 0L;
+            do
+            {
+                var batch = await receiver.PeekMessagesAsync(int.MaxValue, seq);
+                if (batch.Count > 0)
+                {
+                    var newSeq = batch[^1].SequenceNumber;
+                    if (newSeq == seq)
+                        break;
+                    
+
+                    foreach (var item in batch)
+                    {
+                        if (!countsByQueue.ContainsKey(item.SessionId))
+                            countsByQueue.Add(item.SessionId, 1);
+                        else
+                            countsByQueue[item.SessionId]++;
+                    }
+
+                    seq = newSeq;
+                }
+                else
+                {
+                    break;
+                }
+            } while (true);
+
+
+            if (countsByQueue.Count == 0)
+            {
+                await ModifyOriginalResponseAsync(m => m.Content = "Nothing is in queue");
+                return;
+            }
+
+            var output = new StringBuilder();
+            output.AppendLine("**Queued Nightmares**");
+            output.AppendLine("=====================");
+            foreach (var item in countsByQueue.OrderBy(c => c.Value))
+            {
+                if (ulong.TryParse(item.Key, out var userId))
+                    output.Append(MentionUtils.MentionUser(userId));
+                else
+                    output.Append("Unknown user");
+
+                output.AppendLine($": {item.Value}");                
+            }
+            output.AppendLine($"Total in queue: {countsByQueue.Sum(c => c.Value)}");
+
+            await ModifyOriginalResponseAsync(m => m.Content = output.ToString());
+        }
+
+        [SlashCommand("nmblogo", "Logo generation (majesty-diffusion with erlich model)")]
+        public async Task LogoCommandAsync(string prompt)
+        {
+            await DeferAsync();
             var input = new MajestyDiffusionInput();
-                input.clip_prompts = input.latent_prompts = new[] { prompt };
+            input.clip_prompts = new[] { prompt };
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
-            var newPrompt = await GetGPTPrompt(prompt);
+            var newPrompt = await GetGPTResult($"Describe the visual style of a logo for \"{prompt}\":\n\n", prompt, 64, 0.9, 2.0, 2.0);
             if (!string.IsNullOrWhiteSpace(newPrompt))
-                input.clip_prompts = new[] { newPrompt };
-            
-            request.request_state.prompt = newPrompt;
-            request.request_state.gpt_prompt = prompt;
+                input.latent_prompts = new[] { newPrompt.Replace(": ", "- ") };
+
+            input.latent_diffusion_model = "erlich";
+            input.width = 256;
+            input.height = 256;
+
+            request.request_state.prompt = newPrompt.Replace(": ", "- ");
+            request.request_state.gpt_prompt = prompt.Replace(": ", "- ");
 
             var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
             var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
@@ -114,7 +210,86 @@ namespace NightmareBot.Modules
             await _minioClient.PutObjectAsync(idArgs);
             await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", newPrompt);
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
-            await Enqueue(request);
+            await Enqueue(request, true);
+
+            var response = await GetGPTQueueResponse(prompt, "a logo for");
+
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{prompt}*\n```{newPrompt}```");
+
+        }
+
+
+        public enum LatentDiffusionModelType
+        {
+            [ChoiceDisplay("Finetuned (default)")]
+            Finetuned,
+            [ChoiceDisplay("Ongo (paintings)")]            
+            Ongo,
+            [ChoiceDisplay("Erlich (logos)")]
+            Erlich,
+            [ChoiceDisplay("Original")]
+            Original
+        }
+
+        public string GetModelName(LatentDiffusionModelType model)
+        {
+            switch (model)
+            {
+                case LatentDiffusionModelType.Original:
+                    return "original";                    
+                case LatentDiffusionModelType.Ongo:
+                    return "ongo";                    
+                case LatentDiffusionModelType.Erlich:
+                    return "erlich";                    
+                case LatentDiffusionModelType.Finetuned:
+                default:
+                    return "finetuned";                    
+            }
+        }
+
+
+        [SlashCommand("gptdream", "Generates a nightmare using AI assisted prompt generation", runMode: RunMode.Async)]
+        public async Task GptDreamAsync(string prompt, LatentDiffusionModelType latent_diffusion_model = LatentDiffusionModelType.Finetuned)
+        {
+            await DeferAsync();
+
+            var input = new MajestyDiffusionInput();
+                input.clip_prompts = input.latent_prompts = new[] { prompt };
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = await GetGPTPrompt(prompt);
+            if (!string.IsNullOrWhiteSpace(newPrompt))
+                input.clip_prompts = new[] { newPrompt.Replace(": ", "- ") };
+
+            input.latent_diffusion_model = GetModelName(latent_diffusion_model);
+
+            request.request_state.prompt = newPrompt.Replace(": ", "- ");
+            request.request_state.gpt_prompt = prompt.Replace(": ", "- ");
+
+            
+
+            var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+            var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(prompt);
+            var generatedPromptBytes = Encoding.UTF8.GetBytes(newPrompt);
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putObjectArgs);
+            var putSettingsArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(putSettingsArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var gptPromptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(gptPromptArgs);
+
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", newPrompt);
+            //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
+            await Enqueue(request, true);
 
             var response = await GetGPTQueueResponse(prompt);
 
@@ -140,11 +315,11 @@ namespace NightmareBot.Modules
         }
 
         [SlashCommand("dream", "Generates a nightmare from a text prompt")]
-        public async Task DreamAsync(
-            [Choice("Latent Diffusion (fast, multi image)", "latent-diffusion"), 
-                Choice("Majesty Diffusion (latent diffusion fork)", "majesty-diffusion"),
+        public async Task DreamAsync(string prompt,
+            [Choice("Majesty Diffusion (default)", "majesty-diffusion"),
+            Choice("Latent Diffusion (fast, multi image)", "latent-diffusion"),                 
                 Choice("Pixray (slow, single image)", "pixray")]
-                string dreamer, string prompt)
+                string dreamer="majesty-diffusion")
         {
             try
             {
@@ -193,7 +368,7 @@ namespace NightmareBot.Modules
                                 .WithTitle("Majesty Diffusion Dreamer Request")
                                 .WithCustomId("majesty-diffusion")
                                 .AddTextInput("Prompt", "prompt", value: prompt, style: TextInputStyle.Paragraph, required: true)
-                                .AddTextInput("Negative Prompt", "negative_prompt", value: "", placeholder: "optional, things to avoid", required: false)
+                                .AddTextInput("Model [finetuned,original,ongo,erlich]", "latent_diffusion_model", value: "finetuned", required: true)
                                 .AddTextInput("Image Prompt", "init_image", value: "", required: false, placeholder: "image url");
                             await RespondWithModalAsync(modalBuilder.Build());
                         }
@@ -328,12 +503,10 @@ namespace NightmareBot.Modules
             if (!string.IsNullOrWhiteSpace(modal.Prompt))
             {
                 gptPrompt = await GetGPTPrompt(modal.Prompt);
-                input.clip_prompts = new[] { modal.Prompt };
-                input.latent_prompts = new[] { gptPrompt };
-                request.request_state.prompt = modal.Prompt;
+                input.clip_prompts = new[] { modal.Prompt.Replace(": ","- ") };
+                input.latent_prompts = new[] { gptPrompt.Replace(": ", "- ") };
+                request.request_state.prompt = modal.Prompt.Replace(": ", "- ");
             }            
-            if (!string.IsNullOrWhiteSpace(modal.NegativePrompt))
-                input.latent_negatives = modal.NegativePrompt.Split('|', StringSplitOptions.TrimEntries & StringSplitOptions.RemoveEmptyEntries);
             if (!string.IsNullOrWhiteSpace(modal.InitImage))
             {
                 /*
@@ -362,8 +535,52 @@ namespace NightmareBot.Modules
             await _minioClient.PutObjectAsync(idArgs);
             await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", modal.Prompt);
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
-            await Enqueue(request);
+            await Enqueue(request, true);
             await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{modal.Prompt}*\n```{gptPrompt}```");
+        }
+
+        [ModalInteraction("majesty-diffusion-advanced")]
+        public async Task MajestyDiffusionAdvancedModalResponse(MajestyAdvancedModal modal)
+        {
+            if (string.IsNullOrWhiteSpace(modal.Prompt) || string.IsNullOrWhiteSpace(modal.Settings))
+            {
+                await RespondAsync("You didn't fill it in.", ephemeral: true);
+                return;
+            }
+            await RespondAsync("Working on it....");
+            
+            var response = await GetGPTQueueResponse(modal.Prompt);
+            var input = new MajestyDiffusionInput();
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            string gptPrompt = "";
+            //if (!string.IsNullOrWhiteSpace(modal.Prompt))
+            //{
+            //gptPrompt = await GetGPTPrompt(modal.Prompt);
+            //input.clip_prompts = new[] { modal.Prompt.Replace(": ", "- ") };
+            //input.latent_prompts = new[] { gptPrompt.Replace(": ", "- ") };
+            request.request_state.prompt = modal.Prompt.Replace(": ", "- ");
+            //}
+
+            var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+            var settingsBytes = Encoding.UTF8.GetBytes(modal.Settings);
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(modal.Prompt ?? "Missing prompt");
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putObjectArgs);
+            var putSettingsArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(putSettingsArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", modal.Prompt);
+            //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
+            await Enqueue(request, true);
+            await ModifyOriginalResponseAsync(p => { p.Content = $"{response}\n\n *{modal.Prompt}*\n"; p.Attachments = new Optional<IEnumerable<FileAttachment>>(new[] { new FileAttachment(new MemoryStream(settingsBytes), $"{id}.cfg") }); });
         }
 
         [ComponentInteraction("enhance-face:*,*")]
@@ -451,7 +668,7 @@ namespace NightmareBot.Modules
                 await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{request.id}", prompt);
                 await _daprClient.PublishEventAsync(Names.Pubsub, $"request.{request.request_type}", request);
                 await _daprClient.SaveStateAsync(Names.StateStore, request.id.ToString(), request);
-                await DeferAsync();
+                
             }
             catch (Exception ex)
             {
@@ -703,64 +920,17 @@ namespace NightmareBot.Modules
             return await proc.StandardOutput.ReadToEndAsync();
         }
 
-        private async Task Enqueue<T>(PredictionRequest<T> request) where T : IGeneratorInput, new()
+        private async Task Enqueue<T>(PredictionRequest<T> request, bool runpod=false) where T : IGeneratorInput, new()
         {
             await _daprClient.SaveStateAsync(Names.StateStore, $"request-{request.id}", request.request_state);
             await _daprClient.SaveStateAsync(Names.StateStore, $"context-{request.id}", request.context);
             
-            if (typeof(T) == typeof(MajestyDiffusionInput))
-            {/*
-                try
-                {
-                    var instances = JsonSerializer.Deserialize<List<JsonElement>>(await ExecuteVastClient("show instances"));
-                    var selectedInstances = instances?.Where(i => i.GetString("label") == "fast-dreamer");
-                    if (selectedInstances != null)
-                    {
-                        if (selectedInstances.All(i => i.GetString("actual_status") != "running" && i.GetString("next_state") != "running"))
-                        {
-                            // Start the first instance, for now this is good enough hopefully
-                            var instanceId = selectedInstances.First().GetString("id");
-                            var result = await ExecuteVastClient($"start instance {instanceId}");
-                            _logger.LogInformation(result);
-                        }
-                        else
-                        {
-                            _logger.LogInformation("Found a running instance, continuing...");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to check workers");
-                }
-                */
-
-                //var queueClient = new QueueClient(Environment.GetEnvironmentVariable("NIGHTMAREBOT_STORAGE_CONNECTION_STRING"), "fast-dreamer");                
-                //await queueClient.CreateIfNotExistsAsync();
-                //await queueClient.SendMessageAsync(System.Text.Json.JsonSerializer.Serialize(request.request_state));
-
-                // Check for running pod, this is a hack for now
-                /*
-                ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = @"C:\Users\palp\bin\runpodctl.exe", Arguments = "get pods" };
-                startInfo.UseShellExecute = false;
-                startInfo.RedirectStandardOutput = true;
-                startInfo.CreateNoWindow = true;
-                var proc = new Process { StartInfo = startInfo };                
-                proc.Start();
-
-                var output = await proc.StandardOutput.ReadToEndAsync();
-                if (!output.Contains("RUNNING"))
-                {
-                    startInfo.Arguments = "start pod 8ou6nbwgdt1uta";
-                    proc = new Process { StartInfo = startInfo };
-                    proc.Start();
-                    _logger.LogInformation(await proc.StandardOutput.ReadToEndAsync());
-                }
-                */
-
+            if (runpod)
+            {
                 // Do this somewhere better
                 var pods = await _runPodClient.GetPodsWithClouds();
-                if (pods.Keys.All(p => p.DesiredStatus != "RUNNING"))
+                foreach (var p in pods) { _logger.LogInformation($"{p.Key.Id}({p.Key.DesiredStatus}) : {p.Value.GpuName} {p.Value.MinimumBidPrice}"); };
+                if (pods.Keys.Any(p => p.DesiredStatus != "RUNNING"))
                 {
                     foreach (var pod in  pods.OrderBy(p => p.Value.MinimumBidPrice).Where(p => p.Value.MinimumBidPrice != null && p.Value.MinimumBidPrice > 0 && p.Key.DesiredStatus != "RUNNING"))
                     {
@@ -781,7 +951,7 @@ namespace NightmareBot.Modules
                 }
 
                 var sender = _serviceBusClient.CreateSender("fast-dreamer");
-                await sender.SendMessageAsync(new ServiceBusMessage(request.id.ToString()) { SessionId = Context.Channel.Id.ToString() });
+                await sender.SendMessageAsync(new ServiceBusMessage(request.id.ToString()) { SessionId = Context.User.Id.ToString() });
 
             }
             else
