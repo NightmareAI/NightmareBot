@@ -248,6 +248,63 @@ namespace NightmareBot.Modules
         }
 
 
+        [SlashCommand("nmbart", "Create a work of art")]
+        public async Task ArtCommandAsync(string prompt, LatentDiffusionModelType model = LatentDiffusionModelType.Finetuned)
+        {
+            await DeferAsync();
+
+            var input = new MajestyDiffusionInput();
+            input.clip_prompts = input.latent_prompts = new[] { prompt };
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = await GetGPTPrompt(prompt);
+            if (!string.IsNullOrWhiteSpace(newPrompt))
+                input.clip_prompts = new[] { newPrompt.Replace(": ", "- ") };
+
+            input.latent_diffusion_model = GetModelName(model);
+            input.width = 320;
+            input.height = 384;
+            input.custom_schedule_setting = 
+            @"[
+                [50, 1000, 8],
+                'gfpgan:2.0','scale:.9','noise:.75',
+                [5,300,4],
+            ]";
+
+            request.request_state.prompt = newPrompt.Replace(": ", "- ");
+            request.request_state.gpt_prompt = prompt.Replace(": ", "- ");
+
+
+
+            var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+            var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(prompt);
+            var generatedPromptBytes = Encoding.UTF8.GetBytes(newPrompt);
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putObjectArgs);
+            var putSettingsArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(putSettingsArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var gptPromptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(gptPromptArgs);
+
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", newPrompt);
+            //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
+            await Enqueue(request, true);
+
+            var response = await GetGPTQueueResponse(prompt);
+
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{prompt}*\n```{newPrompt}```");
+        }
+
+
         [SlashCommand("gptdream", "Generates a nightmare using AI assisted prompt generation", runMode: RunMode.Async)]
         public async Task GptDreamAsync(string prompt, LatentDiffusionModelType latent_diffusion_model = LatentDiffusionModelType.Finetuned)
         {
@@ -425,6 +482,9 @@ namespace NightmareBot.Modules
             await ModifyOriginalResponseAsync(m => m.Content = $"{response}\n\n *{input.prompts}*\n ```{input.settings}```");
             //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `pixray` dream\n ```{input.settings}```"));            
         }
+
+
+
 
         [ModalInteraction("pixray-advanced")]
         public async Task PixrayAdvancedModalResponse(PixrayModal modal)
@@ -709,7 +769,7 @@ namespace NightmareBot.Modules
                 case "esrgan":
                 case "esrgan-face":
 
-                        await RealEsrganAsync(id, image, item == "esrgan-face", 6);
+                        await RealEsrganAsync(id, image, item == "esrgan-face", 8);
                     break;
             }
 
@@ -786,7 +846,7 @@ namespace NightmareBot.Modules
                 case "esrgan":                    
                 case "esrgan-face":                    
                         foreach (var image in images)
-                            await RealEsrganAsync(id, image, item == "esrgan-face", 6); 
+                            await RealEsrganAsync(id, image, item == "esrgan-face", 8); 
                     break;
             }
 

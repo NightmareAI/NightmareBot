@@ -152,7 +152,7 @@ else if (Directory.Exists("/result/latent-diffusion"))
         WithSelectMenu($"enhance-select-type:{id}", new List<SelectMenuOptionBuilder>
         {
             new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
-            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 8x"),
             new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
         }, minValues: 1, maxValues: 1, placeholder: "Enhance"));
     actions.Add(generateButtons);
@@ -204,7 +204,8 @@ else if (Directory.Exists("/result/enhance"))
     var file = Path.GetFileName(Directory.GetFiles("/result/enhance").First());
 
     var embed = new EmbedBuilder();
-    embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{file}").WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).WithFooter("Enhanced with Real-ESRGAN");
+    string imageUrl = $"https://dumb.dev/nightmarebot-output/{id}/{file}";
+    embed.WithImageUrl(imageUrl).WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).WithFooter("Enhanced with Real-ESRGAN").WithFields(new[] { new EmbedFieldBuilder().WithName("URL").WithValue(imageUrl).WithIsInline(false)});
 
     var builder = new ComponentBuilder();
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Danger).WithCustomId($"tweet:{id},{file}").WithLabel("Tweet"));
@@ -237,7 +238,7 @@ async Task MajestyRespond(string id, DiscordContext context, string prompt, stri
         ($"enhance-select-direct:{id},{filename}", new List<SelectMenuOptionBuilder>
         {
             new SelectMenuOptionBuilder().WithValue("swinir").WithLabel("SwinIR").WithDescription("Uses SwinIR to upscale 4x"),
-            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 6x"),
+            new SelectMenuOptionBuilder().WithValue("esrgan").WithLabel("Real-ESRGAN").WithDescription("Uses Real-ESRGAN to upscale 8x"),
             new SelectMenuOptionBuilder().WithValue("esrgan-face").WithLabel("Real-ESRGAN-Face").WithDescription("Real-ESRGAN+GFPGAN face restoration")
         }, minValues: 1, maxValues: 1, placeholder: "Enhance");
     builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"dream:{id},{filename}").WithLabel("Dream"));
