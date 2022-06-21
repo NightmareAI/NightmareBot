@@ -403,7 +403,7 @@ namespace NightmareBot.Modules
                              .WithTitle("Pixray Dreamer Request")
                              .WithCustomId("pixray-simple")
                              .AddTextInput("Prompts", "prompts", value: prompt, style: TextInputStyle.Paragraph, required: true)
-                             .AddTextInput("Drawer", "drawer", value: "vqgan", placeholder: "vqgan,pixel,clipdraw,line_sketch,super_resolution,vdiff,fft,fast_pixel", required: true)
+                             .AddTextInput("Drawer", "drawer", value: "vqgan", placeholder: "vqgan,pixel,clipdraw,line_sketch", required: true)
                              .AddTextInput("Seed", "seed", value: Random.Shared.Next(int.MaxValue).ToString(), required: true)
                              .AddTextInput("Initial Image", "init_image", value: "", placeholder: "image url (png)", required: false);
 
