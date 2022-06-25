@@ -137,7 +137,7 @@ else if (Directory.Exists("/result/latent-diffusion"))
     ActionRowBuilder generateButtons = new ActionRowBuilder();
     ActionRowBuilder pixrayButtons = new ActionRowBuilder();
     var imageOptions = new List<SelectMenuOptionBuilder>();
-    var embeds = new List<EmbedBuilder>();
+    var embeds = new List<Embed>();
 
     ulong.TryParse(context.guild, out var guild_id);
     ulong.TryParse(context.channel, out var channel_id);
@@ -153,15 +153,15 @@ else if (Directory.Exists("/result/latent-diffusion"))
     var channel = await guild.GetTextChannelAsync(channel_id);
     var user = await channel.GetUserAsync(user_id);
 
-    using var typing = channel.EnterTypingState();
-    var embed = new EmbedBuilder();
+    using var typing = channel.EnterTypingState();    
 
     for (int ix = 0; ix < images.Length; ix++)
     {
         var filename = Path.GetFileName(images[ix]);
-        embeds.Add(new EmbedBuilder().WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/samples/{filename}").WithTitle(prompt).WithFooter($"Sample {ix + 1}").WithCurrentTimestamp());
+        var embed = new EmbedBuilder().WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/samples/{filename}").WithTitle(prompt).WithFooter($"Sample {ix + 1}").WithCurrentTimestamp();
         if (user != null)
             embed.WithAuthor(new EmbedAuthorBuilder().WithName(user.Username).WithIconUrl(user.GetDisplayAvatarUrl()));
+        embeds.Add(embed.Build());
         imageOptions.Add(new SelectMenuOptionBuilder().WithValue($"{ix+1},samples/{filename}").WithLabel($"{ix + 1}"));
         generateButtons.WithButton($"Dream {ix + 1}", $"dream:{id},samples/{filename}", ButtonStyle.Secondary);
         pixrayButtons.WithButton($"Pixray {ix + 1}", $"pixray_init:{id},samples/{filename}", ButtonStyle.Secondary);
@@ -181,7 +181,7 @@ else if (Directory.Exists("/result/latent-diffusion"))
 
 
     var message = MentionUtils.MentionUser(user_id) + "\n" + await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty);
-    await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
+    await channel.SendMessageAsync(message, embeds: embeds.ToArray(), components: builder.Build());
 }
 else if (Directory.Exists("/result/enhance"))
 {
