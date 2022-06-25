@@ -35,7 +35,7 @@ namespace NightmareBot.Modules
 
         public CommandModule(DaprClient daprClient, ILogger<CommandModule> logger, CommandHandler handler, TwitterContext twitterContext, MinioClient minioClient, OpenAIClient openAIClient, ServiceBusClient serviceBusClient, RunPodApiClient runPodApiClient, CosmosClient cosmosClient) { _daprClient = daprClient; _logger = logger; _handler = handler; _twitter = twitterContext; _minioClient = minioClient; _openAI = openAIClient; _serviceBusClient = serviceBusClient; _runPodClient = runPodApiClient; _cosmosClient = cosmosClient; }
 
-        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 64)
+        public async Task<string> GetGPTPrompt(string prompt, int max_tokens = 64, string model="text-curie-001")
         {
             try
             {
@@ -49,14 +49,14 @@ namespace NightmareBot.Modules
 
         private async Task<string> GetGPTQueueResponse(string prompt, string description = "a piece of art titled")
         {
-            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate {description} ", prompt, ". What is your response?");
+            return await GetGPTNotification($"You are NightmareBot, a bot on the {Context.Guild.Name} Discord server that generates nightmarish art. You have just been asked by {Context.User.Username} in the {Context.Channel.Name} channel to generate {description} ", prompt, $". Get people excited for the soon to be masterpiece you're creating:", model: "text-curie-001", max_tokens: 1000);
         }
 
-        public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix)
+        public async Task<string> GetGPTNotification(string prefix, string prompt, string suffix, int max_tokens = 150, string model="text-curie-001")
         {
             try
             {
-                var response = await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt, 75);
+                var response = await GetGPTResult($"{prefix} \"{prompt}\" {suffix}:\n", prompt, max_tokens, model: model);
 
                 return response;
             }
@@ -92,6 +92,145 @@ namespace NightmareBot.Modules
                 .AddTextInput("Settings", "settings", value: input.settings, required: true, style: TextInputStyle.Paragraph);                
             await RespondWithModalAsync(modalBuilder.Build());
 
+        }
+
+        public enum MajestyPresets
+        {
+            [ChoiceDisplay("NightmareBot")]
+            NightmareBot,
+            [ChoiceDisplay("MachineCanvas")]
+            MachineCanvas,
+            [ChoiceDisplay("PinguinAnimations_V.45")]
+            PinguinAnimations,
+            [ChoiceDisplay("Pika (PinguinAnimations)")]
+            Pika
+        }
+
+        public enum MajestyGeneratedPromptStyle
+        {
+            [ChoiceDisplay("Generate CLIP prompt")]
+            CLIP,
+            [ChoiceDisplay("Generate Latent prompt")]
+            Latent,
+            [ChoiceDisplay("Use only my prompt")]
+            None
+        }
+
+        [SlashCommand("nmbpreset", "Use custom presets with majesty-diffusion")]
+        public async Task MajestyPresetAsync(string prompt, MajestyPresets preset, LatentDiffusionModelType model = LatentDiffusionModelType.Finetuned, MajestyGeneratedPromptStyle generatePrompt = MajestyGeneratedPromptStyle.CLIP)
+        {
+            await DeferAsync();
+
+            var input = new MajestyDiffusionInput();
+            input.clip_prompts = input.latent_prompts = new[] { prompt };
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = prompt;
+            if (generatePrompt != MajestyGeneratedPromptStyle.None)
+            {                
+                newPrompt = await GetGPTPrompt(prompt, model: "text-davinci-001");
+                if (!string.IsNullOrWhiteSpace(newPrompt))
+                    if (generatePrompt == MajestyGeneratedPromptStyle.CLIP)
+                        input.clip_prompts = new[] { newPrompt.Replace(": ", "- ") };
+                    else if (generatePrompt == MajestyGeneratedPromptStyle.Latent)
+                        input.latent_prompts = new[] { newPrompt.Replace(": ", "- ") };                
+            }
+
+            input.latent_diffusion_model = GetModelName(model);
+            
+            switch (preset)
+            {
+                case MajestyPresets.MachineCanvas:
+                    input.width = 320;
+                    input.height = 384;
+                    input.custom_schedule_setting =@"[[50, 1000, 8],'gfpgan:2.0','scale:.9','noise:.75',[5,300,4]]";
+                    break;
+                case MajestyPresets.PinguinAnimations:
+                    input.width = 320;
+                    input.height = 384;
+                    input.custom_schedule_setting = @"[[30, 1000, 8], 'gfpgan:2.0','noise:0.3', [30, 250, 8], 'gfpgan:1.0','noise:0.3', [1, 125, 4], 'gfpgan:1.0','noise:0.3', [1, 80, 4]]";
+                    input.clip_guidance_schedule = @"[6200]*1800";
+                    input.clamp_index = @"[0.61, 0.45]";
+                    input.latent_diffusion_guidance_scale = 9;
+                    input.cut_overview = "[8]*200 + [10]*200 + [8]*200 + [6]*200 + [1]*200";
+                    input.cut_innercut = "[2]*200 + [6]*200 + [8]*200 + [10]*200 + [14]*200";
+                    input.cut_ic_pow = 0.5f;
+                    input.cut_icgray_p = "[0.87]*100+[0.78]*50+[0.73]*50+[0.64]*60+[0.56]*40+[0.50]*50+[0.33]*100+[0.19]*150+[0]*400";
+                    input.range_index = "[0]*200 + [50000.0]*400 + [0]*1000";
+                    input.tv_scales = "[0]*1000";
+                    input.symmetric_loss_scale = 0.8f;
+                    break;
+                case MajestyPresets.Pika:
+                    input.latent_diffusion_guidance_scale = 12.8f;
+                    input.clip_guidance_scale = 8500;
+                    input.aesthetic_loss_scale = 400;
+                    input.augment_cuts = true;
+                    input.starting_timestep = 0.9f;
+                    input.init_scale = 1000;
+                    input.init_brightness = 0.0f;
+                    input.use_cond_fn = true;
+                    input.custom_schedule_setting = "[[30,420,10],'gfpgan:1.0',[30,250,8],'gfpgan:1.0',[1,125,4],'gfpgan:1.0',[1,40,2]]";
+                    input.clamp_index = "[0.61, 0.45]";
+                    input.cut_overview = "[12]*1000";
+                    input.cut_innercut = "[0]*1000";
+                    input.cut_blur_n = "[0]*1300";
+                    input.cut_blur_kernel = 3;
+                    input.cut_ic_pow = 0.1f;
+                    input.cut_icgray_p = "[0.1]*300 + [0]*1000";
+                    input.cutn_batches = 1;
+                    input.range_index = "[0]*200 + [50000.0]*400 + [0]*1000";
+                    input.active_function = "softsign";
+                    input.ths_method = "clamp";
+                    input.tv_scales = "[0]*4";
+                    input.symmetric_loss_scale = 0;
+                    input.scale_div = 3.5f;
+                    input.opt_mag_mul = 10;
+                    input.opt_ddim_eta = -1.5f;
+                    input.opt_eta_end = -1;
+                    input.opt_temperature = 0.97f;
+                    input.grad_scale = 4.25f;
+                    input.threshold_percentile = 0.85f;
+                    input.threshold = 1;
+                    input.var_index = "[2]*300+[0]*700";
+                    input.mean_index = "[0]*1000";
+                    break;
+                case MajestyPresets.NightmareBot:
+                default:
+                    break;
+            }
+
+            request.request_state.preset_name = preset.ToString();
+            request.request_state.prompt = newPrompt.Replace(": ", "- ");
+            request.request_state.gpt_prompt = prompt.Replace(": ", "- ");
+
+
+
+            var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+            var settingsBytes = Encoding.UTF8.GetBytes($"#Created by NightmareBot on {Context.Guild.Name} by {Context.User.Username} using majesty diffusion preset {preset}\n{input.settings}");
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(prompt);
+            var generatedPromptBytes = Encoding.UTF8.GetBytes(newPrompt);            
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putObjectArgs);
+            var putSettingsArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(putSettingsArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var gptPromptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(gptPromptArgs);
+
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", newPrompt);
+            //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
+            await Enqueue(request, true);
+
+            var response = await GetGPTQueueResponse(prompt);
+
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{prompt}*\n```{newPrompt}```");
         }
 
         [SlashCommand("nmbstats", "Show stats")]
@@ -868,7 +1007,7 @@ namespace NightmareBot.Modules
                     .WithTitle("Pixray Dreamer Request")
                     .WithCustomId("pixray-simple")
                     .AddTextInput("Prompts", "prompts", value: prompt, style: TextInputStyle.Paragraph, required: true)
-                    .AddTextInput("Drawer", "drawer", value: "vqgan", placeholder: "vqgan,pixel,clipdraw,line_sketch,super_resolution,vdiff,fft,fast_pixel", required: true)
+                    .AddTextInput("Drawer", "drawer", value: "vqgan", placeholder: "vqgan,pixel,clipdraw,line_sketch", required: true)
                     .AddTextInput("Seed", "seed", value: Random.Shared.Next(int.MaxValue).ToString(), required: true)
                     .AddTextInput("Initial Image", "init_image", value: imageUrl, placeholder: "image url (png)", required: false);
 
@@ -984,32 +1123,70 @@ namespace NightmareBot.Modules
         {
             await _daprClient.SaveStateAsync(Names.StateStore, $"request-{request.id}", request.request_state);
             await _daprClient.SaveStateAsync(Names.StateStore, $"context-{request.id}", request.context);
+            var stateBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request.request_state));
+            await _minioClient.PutObjectAsync(new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{request.id}/state.json").WithStreamData(new MemoryStream(stateBytes)).WithObjectSize(stateBytes.Length).WithContentType("application/json"));
+
+            
             
             if (runpod)
             {
-                // Do this somewhere better
-                var pods = await _runPodClient.GetPodsWithClouds();
-                foreach (var p in pods) { _logger.LogInformation($"{p.Key.Id}({p.Key.DesiredStatus}) : {p.Value.GpuName} {p.Value.MinimumBidPrice}"); };
-                if (pods.Keys.Any(p => p.DesiredStatus != "RUNNING"))
+                var receiver = _serviceBusClient.CreateReceiver("fast-dreamer");
+                var countsByQueue = new Dictionary<string, int>();
+
+                var seq = 0L;
+                do
                 {
-                    foreach (var pod in  pods.OrderBy(p => p.Value.MinimumBidPrice).Where(p => p.Value.MinimumBidPrice != null && p.Value.MinimumBidPrice > 0 && p.Key.DesiredStatus != "RUNNING"))
+                    var batch = await receiver.PeekMessagesAsync(int.MaxValue, seq);
+                    if (batch.Count > 0)
                     {
-                        try
+                        var newSeq = batch[^1].SequenceNumber;
+                        if (newSeq == seq)
+                            break;
+
+
+                        foreach (var item in batch)
                         {
-                            if (pod.Value.MinimumBidPrice.HasValue)
+                            if (!countsByQueue.ContainsKey(item.SessionId))
+                                countsByQueue.Add(item.SessionId, 1);
+                            else
+                                countsByQueue[item.SessionId]++;
+                        }
+
+                        seq = newSeq;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                } while (true);
+
+
+                // Queues are per user so if they already have an item in queue we don't need to spin anything up
+                if (!countsByQueue.ContainsKey(Context.User.Id.ToString()))
+                {
+                    // Do this somewhere better
+                    var pods = await _runPodClient.GetPodsWithClouds();
+                    foreach (var p in pods) { _logger.LogInformation($"{p.Key.Id}({p.Key.DesiredStatus}) : {p.Value.GpuName} {p.Value.MinimumBidPrice}"); };
+                    if (pods.Keys.Any(p => p.DesiredStatus != "RUNNING"))
+                    {
+                        foreach (var pod in pods.OrderBy(p => p.Value.MinimumBidPrice).Where(p => p.Value.MinimumBidPrice != null && p.Value.MinimumBidPrice > 0 && p.Key.DesiredStatus != "RUNNING"))
+                        {
+                            try
                             {
-                                var startResult = await _runPodClient.StartSpotPod(pod.Key.Id, pod.Value.MinimumBidPrice.Value + .01f);
-                                _logger.LogInformation($"Started pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + 0.01f}/hr: {startResult}");
-                                break;
+                                if (pod.Value.MinimumBidPrice.HasValue)
+                                {
+                                    var startResult = await _runPodClient.StartSpotPod(pod.Key.Id, pod.Value.MinimumBidPrice.Value + .01f);
+                                    _logger.LogInformation($"Started pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + 0.01f}/hr: {startResult}");
+                                    break;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, $"Failed to start pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + .01f}/hr");
                             }
                         }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, $"Failed to start pod {pod.Key.Id} at ${pod.Value.MinimumBidPrice + .01f}/hr");
-                        }
-                    }                    
+                    }
                 }
-
                 var sender = _serviceBusClient.CreateSender("fast-dreamer");
                 await sender.SendMessageAsync(new ServiceBusMessage(request.id.ToString()) { SessionId = Context.User.Id.ToString() });
 

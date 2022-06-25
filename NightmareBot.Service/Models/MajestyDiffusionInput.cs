@@ -16,6 +16,7 @@ public class MajestyDiffusionInput : IGeneratorInput
     public int width { get; set; } = 256;
     public float latent_diffusion_guidance_scale { get; set; } = 12f;
     public int clip_guidance_scale { get; set; } = 16000;
+    public string? clip_guidance_schedule { get; set; }
     public int how_many_batches { get; set; } = 1;
     public int aesthetic_loss_scale { get; set; } = 400;
     public bool augment_cuts { get; set; } = true;
@@ -24,6 +25,32 @@ public class MajestyDiffusionInput : IGeneratorInput
     public string? init_mask { get; set; }
     public int init_scale { get; set; } = 1000;
     public float init_brightness { get; set; } = 0.0f;
+    public string clamp_index { get; set; } = "[2.4, 2.1]";
+    public string cut_overview { get; set;  } ="[8]*500 + [4]*500";
+    public string cut_innercut { get; set; } = "[0]*500 + [4]*500";
+    public float cut_ic_pow { get; set; } = 0.2f;
+    public string cut_icgray_p { get; set; } = "[0.1]*300 + [0]*1000";
+    public string cut_blur_n { get; set; } = "[0] * 300 + [0] * 1000";
+    public int cut_blur_kernel { get; set; } = 3;
+    public string range_index { get; set; } = "[0]*200+[5e4]*400+[0]*1000";
+    public string ths_method { get; set; } = "softsign";
+    public string active_function { get; set; } = "softsign";
+    public string tv_scales { get; set; } = "[600] * 1 + [50] * 1 + [0] * 2";
+    public float symmetric_loss_scale { get; set; } = 0f;
+    public int cutn_batches { get; set; } = 1;
+    public int opt_mag_mul { get; set; } = 20;
+    public bool opt_plms { get; set; } = false;
+    public float opt_ddim_eta { get; set; } = 1.3f;
+    public float opt_eta_end { get; set; } = 1.1f;
+    public float scale_div { get; set; } = 1;
+    public float opt_temperature { get; set; } = 0.98f;
+    public float grad_scale { get; set; } = 0.25f;
+    public float threshold_percentile { get; set; } = 0.85f;
+    public int threshold { get; set; } = 1;
+    public string var_index { get; set; } = "[2]*300+[0]*700";
+    public float var_range { get; set; } = 0.5f;
+    public string mean_index { get; set; } = "[0]*400+[0]*600";
+    public float mean_range { get; set; } = 0.75f;
     public string[] clip_load_list { get; set; } = {
 //        "[clip - mlfoundations - ViT-B-32--openai]",
         "[clip - mlfoundations - ViT-B-16--openai]",
@@ -79,46 +106,45 @@ public class MajestyDiffusionInput : IGeneratorInput
     custom_schedule_setting = {custom_schedule_setting}
 
     #Cut settings
-    clamp_index = [2.4, 2.1]
-    cut_overview = [8]*500 + [4]*500
-    cut_innercut = [0]*500 + [4]*500
-    cut_ic_pow = 0.2
-    cut_icgray_p = [0.1]*300 + [0]*1000
-    cutn_batches = 1
-    cut_blur_n = [0] * 300 + [0] * 1000
-    cut_blur_kernel = 3
-    range_index = [0]*200+[5e4]*400+[0]*1000
-    active_function = 'softsign'
-    ths_method = 'softsign'
-    tv_scales = [600] * 1 + [50] * 1 + [0] * 2
+    clamp_index = {clamp_index}
+    cut_overview = {cut_overview}
+    cut_innercut = {cut_innercut}
+    cut_ic_pow = {cut_ic_pow}
+    cut_icgray_p = {cut_icgray_p}
+    cutn_batches = {cutn_batches}
+    cut_blur_n = {cut_blur_n}
+    cut_blur_kernel = {cut_blur_kernel}
+    range_index = {range_index}
+    active_function = '{active_function}'
+    ths_method = '{ths_method}'
+    tv_scales = {tv_scales}
     
-
-    #If you uncomment this line you can schedule the CLIP guidance across the steps. Otherwise the clip_guidance_scale will be used
-    # clip_guidance_schedule = [10000]*300 + [500]*700
+    {(!string.IsNullOrEmpty(clip_guidance_schedule) ? $"clip_guidance_schedule = {clip_guidance_schedule}" : "")}
     
     #Apply symmetric loss (force simmetry to your results)
-    symmetric_loss_scale = 0 
+    symmetric_loss_scale = {symmetric_loss_scale} 
 
     #Latent Diffusion Advanced Settings
     #Use when latent upscale to correct satuation problem
-    scale_div = 1
+    scale_div = {scale_div}
     #Magnify grad before clamping by how many times
-    opt_mag_mul = 20
-    opt_plms = False
-    opt_ddim_eta = 1.3
-    opt_eta_end = 1.1
-    opt_temperature = 0.98
+    opt_mag_mul = {opt_mag_mul}
+    opt_plms = {opt_plms}
+    opt_ddim_eta = {opt_ddim_eta}
+    opt_eta_end = {opt_eta_end}
+    opt_temperature = {opt_temperature}
 
     #Grad advanced settings
     grad_center = False
     #Lower value result in more coherent and detailed result, higher value makes it focus on more dominent concept
-    grad_scale=0.25
+    grad_scale={grad_scale}
     score_modifier = True
-    threshold_percentile = 0.85
-    threshold = 1
-    var_index = [2]*300+[0]*700
-    mean_index = [0]*400+[0]*600
-    mean_range = 0.75
+    threshold_percentile = {threshold_percentile}
+    threshold = {threshold}
+    var_index = {var_index}
+    var_range = {var_range}
+    mean_index = {mean_index}
+    mean_range = {mean_range}
 
     #Init image advanced settings
     init_rotate=False

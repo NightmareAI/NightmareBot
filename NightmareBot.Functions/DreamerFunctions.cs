@@ -33,11 +33,20 @@ namespace NightmareBot.Functions
             await minioClient.GetObjectAsync(new GetObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{requestId}/context.json").WithCallbackStream(s => { context = JsonSerializer.Deserialize<DiscordContext>(s); }));
             string prompt = "";
             await minioClient.GetObjectAsync(new GetObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{requestId}/prompt.txt").WithCallbackStream(s => { prompt = new StreamReader(s).ReadToEnd(); }));
+            RequestState state = null;
+            try
+            {
+                await minioClient.GetObjectAsync(new GetObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{requestId}/state.json").WithCallbackStream(s => { state = JsonSerializer.Deserialize<RequestState>(s); }));
+                state.success = true;
+                state.completed_at = DateTime.UtcNow;
+                state.last_updated = DateTime.UtcNow;
+                state.is_active = false;
+            }
+            catch { } // this is fine
+
 
             if (context != null && !string.IsNullOrWhiteSpace(prompt))
-                await MajestyRespond(requestId, context, prompt, $"{requestId}.png");
-
-
+                await MajestyRespond(requestId, context, prompt, $"{requestId}.png", state);
 
             return new OkResult();
         }
@@ -60,7 +69,7 @@ namespace NightmareBot.Functions
             return new BadRequestResult();
         }
 
-        private static async Task MajestyRespond(string id, DiscordContext context, string prompt, string filename)
+        private static async Task MajestyRespond(string id, DiscordContext context, string prompt, string filename, RequestState request)
         {
             if (context == null)
                 return;
@@ -94,9 +103,23 @@ namespace NightmareBot.Functions
             var user = await channel.GetUserAsync(user_id);
 
 
+            var fields = new List<EmbedFieldBuilder>();
+
+            fields.Add(new EmbedFieldBuilder().WithName("dreamer").WithValue("majesty-diffusion").WithIsInline(true));
+            fields.Add(new EmbedFieldBuilder().WithName("prompt").WithValue(prompt).WithIsInline(true));            
+            if (request?.created_at != null)
+                fields.Add(new EmbedFieldBuilder().WithName("time elapsed").WithValue($"{(request.completed_at - request.created_at).Value.TotalSeconds} seconds"));
+            if (request?.preset_name != null)
+                fields.Add(new EmbedFieldBuilder().WithName("preset").WithValue(request.preset_name).WithIsInline(true));
+
             using var typingState = channel.EnterTypingState();
             var embed = new EmbedBuilder();
-            embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{filename}").WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).WithFooter("Generated with majesty-diffusion").WithCurrentTimestamp().WithDescription(await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty));
+            embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{filename}").
+                WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).
+                WithFooter("Generated with majesty-diffusion").
+                WithCurrentTimestamp().
+                WithFields(fields.ToArray()).
+                WithDescription(await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty));
 
             if (user != null)
                 embed.WithAuthor(new EmbedAuthorBuilder().WithName(user.Username).WithIconUrl(user.GetDisplayAvatarUrl()));

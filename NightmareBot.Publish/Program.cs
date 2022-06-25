@@ -129,8 +129,6 @@ else if (Directory.Exists("/result/latent-diffusion"))
     if (context == null)
         return;    
 
-    var gridImage = Directory.GetFiles("/result/latent-diffusion/", "*.png").First();
-
     var images = Directory.GetFiles("/result/latent-diffusion/samples/", "*.png");
 
     var builder = new ComponentBuilder();
@@ -139,9 +137,31 @@ else if (Directory.Exists("/result/latent-diffusion"))
     ActionRowBuilder generateButtons = new ActionRowBuilder();
     ActionRowBuilder pixrayButtons = new ActionRowBuilder();
     var imageOptions = new List<SelectMenuOptionBuilder>();
+    var embeds = new List<EmbedBuilder>();
+
+    ulong.TryParse(context.guild, out var guild_id);
+    ulong.TryParse(context.channel, out var channel_id);
+    ulong.TryParse(context.message, out var message_id);
+    ulong.TryParse(context.user, out var user_id);
+
+    var guild = await discord.GetGuildAsync(guild_id);
+    if (guild == null)
+    {
+        Console.WriteLine("Unable to get guild from discord");
+        return;
+    }
+    var channel = await guild.GetTextChannelAsync(channel_id);
+    var user = await channel.GetUserAsync(user_id);
+
+    using var typing = channel.EnterTypingState();
+    var embed = new EmbedBuilder();
+
     for (int ix = 0; ix < images.Length; ix++)
     {
         var filename = Path.GetFileName(images[ix]);
+        embeds.Add(new EmbedBuilder().WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/samples/{filename}").WithTitle(prompt).WithFooter($"Sample {ix + 1}").WithCurrentTimestamp());
+        if (user != null)
+            embed.WithAuthor(new EmbedAuthorBuilder().WithName(user.Username).WithIconUrl(user.GetDisplayAvatarUrl()));
         imageOptions.Add(new SelectMenuOptionBuilder().WithValue($"{ix+1},samples/{filename}").WithLabel($"{ix + 1}"));
         generateButtons.WithButton($"Dream {ix + 1}", $"dream:{id},samples/{filename}", ButtonStyle.Secondary);
         pixrayButtons.WithButton($"Pixray {ix + 1}", $"pixray_init:{id},samples/{filename}", ButtonStyle.Secondary);
@@ -159,29 +179,8 @@ else if (Directory.Exists("/result/latent-diffusion"))
     actions.Add(pixrayButtons);
     builder.WithRows(actions);
 
-    ulong.TryParse(context.guild, out var guild_id);
-    ulong.TryParse(context.channel, out var channel_id);
-    ulong.TryParse(context.message, out var message_id);
-    ulong.TryParse(context.user, out var user_id);
 
-    var guild = await discord.GetGuildAsync(guild_id);
-    if (guild == null)
-    {
-        Console.WriteLine("Unable to get guild from discord");
-        return;
-    }
-    var channel = await guild.GetTextChannelAsync(channel_id);
-    var user = await channel.GetUserAsync(user_id);
-    
-    using var typing = channel.EnterTypingState();
-    var embed = new EmbedBuilder();
-    embed.WithImageUrl($"https://dumb.dev/nightmarebot-output/{id}/{Path.GetFileName(gridImage)}").WithTitle(prompt.Length > 256 ? prompt.Substring(0, 256) : prompt).WithFooter("Generated with latent-diffusion").WithDescription(await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty)).WithCurrentTimestamp();
-
-    if (user != null)
-        embed.WithAuthor(new EmbedAuthorBuilder().WithName(user.Username).WithIconUrl(user.GetDisplayAvatarUrl()));
-
-
-    var message = MentionUtils.MentionUser(user_id);
+    var message = MentionUtils.MentionUser(user_id) + "\n" + await GPT3Announce(prompt, guild.Name, channel.Name, user?.Username ?? string.Empty);
     await channel.SendMessageAsync(message, embed: embed.Build(), components: builder.Build());
 }
 else if (Directory.Exists("/result/enhance"))

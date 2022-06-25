@@ -4,6 +4,7 @@
     {
         public string? request_id { get; set; }
         public string? request_type { get; set; }
+        public string? preset_name { get; set; }
         public DateTime? created_at { get; set; }
         public DateTime? queued_at { get; set; }
         public DateTime? started_at { get; set; }
