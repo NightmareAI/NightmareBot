@@ -28,6 +28,7 @@ namespace NightmareBot.Functions
         {            
             string token = req.Query["token"];
             string requestId = req.Query["id"];
+            log.LogInformation($"Processing response for {requestId}");
             var minioClient = new Minio.MinioClient().WithCredentials(Environment.GetEnvironmentVariable("NIGHTMAREBOT_MINIO_KEY"), Environment.GetEnvironmentVariable("NIGHTMAREBOT_MINIO_SECRET")).WithEndpoint("dumb.dev").Build();
             DiscordContext context = null;
             await minioClient.GetObjectAsync(new GetObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{requestId}/context.json").WithCallbackStream(s => { context = JsonSerializer.Deserialize<DiscordContext>(s); }));
@@ -44,9 +45,14 @@ namespace NightmareBot.Functions
             }
             catch { } // this is fine
 
+            if (string.IsNullOrEmpty(prompt))
+            {
+                log.LogError("Prompt is null");
+                return new BadRequestResult();
+            }
 
             if (context != null && !string.IsNullOrWhiteSpace(prompt))
-                await MajestyRespond(requestId, context, prompt, $"{requestId}.png", state);
+                await MajestyRespond(requestId, context, prompt, $"{requestId}.png", state, log);
 
             return new OkResult();
         }
@@ -69,15 +75,19 @@ namespace NightmareBot.Functions
             return new BadRequestResult();
         }
 
-        private static async Task MajestyRespond(string id, DiscordContext context, string prompt, string filename, RequestState request)
+        private static async Task MajestyRespond(string id, DiscordContext context, string prompt, string filename, RequestState request, ILogger log)
         {
             if (context == null)
                 return;
+
+            log.LogInformation("Parsing context..");
             ulong.TryParse(context.guild, out var guild_id);
             ulong.TryParse(context.channel, out var channel_id);
             ulong.TryParse(context.message, out var message_id);
             ulong.TryParse(context.user, out var user_id);
+            var token = Environment.GetEnvironmentVariable("NIGHTMAREBOT_DISCORD_TOKEN");
 
+            log.LogInformation("Building compoenent...");
             var builder = new ComponentBuilder();
             builder.WithSelectMenu
                 ($"enhance-select-direct:{id},{filename}", new List<SelectMenuOptionBuilder>
@@ -90,8 +100,17 @@ namespace NightmareBot.Functions
             builder.WithButton(new ButtonBuilder().WithStyle(ButtonStyle.Secondary).WithCustomId($"pixray_init:{id},{filename}").WithLabel("Pixray"));
 
             var discord = new DiscordRestClient();
-            await discord.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("NIGHTMAREBOT_DISCORD_TOKEN"));
+            try
+            {
+                log.LogInformation("Authenticating to Discord...");                
+                await discord.LoginAsync(TokenType.Bot, token);
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Failed to login to Discord");
+            }
 
+            log.LogInformation("Getting guild...");
             var guild = await discord.GetGuildAsync(guild_id);
             if (guild == null)
             {
@@ -99,17 +118,20 @@ namespace NightmareBot.Functions
                 return;
             }
 
+            log.LogInformation("Getting channel...");
             var channel = await guild.GetTextChannelAsync(channel_id);
+            log.LogInformation("Getting user...");
             var user = await channel.GetUserAsync(user_id);
 
 
+            log.LogInformation("Building fields");
             var fields = new List<EmbedFieldBuilder>();
 
             fields.Add(new EmbedFieldBuilder().WithName("dreamer").WithValue("majesty-diffusion").WithIsInline(true));
-            fields.Add(new EmbedFieldBuilder().WithName("prompt").WithValue(prompt).WithIsInline(true));            
-            if (request?.created_at != null)
-                fields.Add(new EmbedFieldBuilder().WithName("time elapsed").WithValue($"{(request.completed_at - request.created_at).Value.TotalSeconds} seconds"));
-            if (request?.preset_name != null)
+            fields.Add(new EmbedFieldBuilder().WithName("prompt").WithValue(prompt));            
+            if (request?.created_at != null && request?.completed_at != null)
+                fields.Add(new EmbedFieldBuilder().WithName("time elapsed").WithValue($"{(request.completed_at - request.created_at)?.TotalSeconds} seconds"));
+            if (!string.IsNullOrWhiteSpace(request?.preset_name))
                 fields.Add(new EmbedFieldBuilder().WithName("preset").WithValue(request.preset_name).WithIsInline(true));
 
             using var typingState = channel.EnterTypingState();

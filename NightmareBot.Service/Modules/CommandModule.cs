@@ -92,7 +92,7 @@ namespace NightmareBot.Modules
                 .AddTextInput("Settings", "settings", value: input.settings, required: true, style: TextInputStyle.Paragraph);                
             await RespondWithModalAsync(modalBuilder.Build());
 
-        }
+        }        
 
         public enum MajestyPresets
         {
@@ -122,18 +122,42 @@ namespace NightmareBot.Modules
             await DeferAsync();
 
             var input = new MajestyDiffusionInput();
-            input.clip_prompts = input.latent_prompts = new[] { prompt };
+            var clip_prompts = new List<string>();
+            var latent_prompts = new List<string>();
+            var prompts = prompt.Split("|");
             var id = Guid.NewGuid();
             var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
             var newPrompt = prompt;
-            if (generatePrompt != MajestyGeneratedPromptStyle.None)
-            {                
-                newPrompt = await GetGPTPrompt(prompt, model: "text-davinci-001");
-                if (!string.IsNullOrWhiteSpace(newPrompt))
-                    if (generatePrompt == MajestyGeneratedPromptStyle.CLIP)
-                        input.clip_prompts = new[] { newPrompt.Replace(": ", "- ") };
-                    else if (generatePrompt == MajestyGeneratedPromptStyle.Latent)
-                        input.latent_prompts = new[] { newPrompt.Replace(": ", "- ") };                
+
+            if (generatePrompt == MajestyGeneratedPromptStyle.CLIP)
+            {
+                foreach (var p in prompts)
+                {
+                    newPrompt = await GetGPTPrompt(p, model: "text-davinci-002");
+                    if (!string.IsNullOrWhiteSpace(newPrompt))
+                    {
+                        clip_prompts.Add(newPrompt.Replace(": ", "- "));
+                        latent_prompts.Add(p.Trim());
+                    }
+                    else
+                    {
+                        clip_prompts.Add(prompt);
+                        latent_prompts.Add(prompt);
+                    }
+                }
+                input.clip_prompts = clip_prompts.ToArray();
+                input.latent_prompts = new[] { string.Join(',', latent_prompts) };
+            }
+            else if (generatePrompt == MajestyGeneratedPromptStyle.Latent)
+            {
+                newPrompt = await GetGPTPrompt(prompt, model: "text-davinci-002");
+                input.latent_prompts = new[] { newPrompt };
+                input.clip_prompts = prompts;
+            }
+            else
+            {
+                input.clip_prompts = prompts;
+                input.latent_prompts = new[] { string.Join(',', prompts) };
             }
 
             input.latent_diffusion_model = GetModelName(model);
@@ -230,7 +254,7 @@ namespace NightmareBot.Modules
 
             var response = await GetGPTQueueResponse(prompt);
 
-            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{prompt}*\n```{newPrompt}```");
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n *{string.Join("\n", input.clip_prompts)}*\n```\n{string.Join("\n", input.latent_prompts)}\n```");
         }
 
         [SlashCommand("nmbstats", "Show stats")]
@@ -386,6 +410,104 @@ namespace NightmareBot.Modules
             }
         }
 
+        [SlashCommand("nmbtweet", "Make artwork from a random tweet by username or search")]
+        public async Task TweetCommandAsync(string username = "", string search = "")
+        {
+            if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(search))
+            {
+                await RespondAsync("You need to specify a username or a search.", ephemeral: true);
+                return;
+            }            
+
+            await DeferAsync();            
+
+            if (!string.IsNullOrEmpty(username)) 
+            {
+                if (username.StartsWith("@"))
+                    username = username.Substring(1);
+                search = $"from:{username} {search}";
+            }
+
+            var searchResponse = await _twitter.TwitterSearch.Where(
+                s => s.Query == search &&
+                s.Type == SearchType.RecentSearch &&               
+                s.TweetFields == TweetField.AllFieldsExceptPermissioned &&
+                s.Expansions == ExpansionField.AllTweetFields &&
+                s.MediaFields == MediaField.AllFieldsExceptPermissioned &&
+                s.PlaceFields == PlaceField.AllFields &&
+                s.PollFields == PollField.AllFields &&
+                s.UserFields == UserField.AllFields).ToListAsync();
+            var tweets = searchResponse.SelectMany(s => s.Tweets ?? new List<Tweet>()).Where(t => t.InReplyToUserID == null && t.ReferencedTweets == null && t.Attachments == null).ToList();
+
+            if (!tweets.Any())
+            {
+                await ModifyOriginalResponseAsync(m => m.Content = "No tweets found.");
+                return;
+            }
+
+            var selectedIndex = Random.Shared.Next(tweets.Count);
+            var tweet = tweets[selectedIndex];
+            var prompt = tweet.Text;            
+
+            if (prompt == null)
+            {
+                await ModifyOriginalResponseAsync(m => m.Content = "I got an empty tweet? Weird.");
+                return;
+            }
+
+            var input = new MajestyDiffusionInput();
+            input.clip_prompts = input.latent_prompts = new[] { prompt };
+            var id = Guid.NewGuid();
+            var request = new PredictionRequest<MajestyDiffusionInput>(Context, input, id);
+            var newPrompt = await GetGPTPrompt(prompt);
+            if (!string.IsNullOrWhiteSpace(newPrompt))
+                input.clip_prompts = new[] { newPrompt.Replace(": ", "- ") };
+
+            input.latent_diffusion_model = "finetuned";
+            input.width = 320;
+            input.height = 384;
+            input.custom_schedule_setting =
+            @"[
+                [50, 1000, 8],
+                'gfpgan:2.0','scale:.9','noise:.75',
+                [5,300,4],
+            ]";
+
+            request.request_state.prompt = newPrompt.Replace(": ", "- ");
+            request.request_state.gpt_prompt = prompt.Replace(": ", "- ");
+
+
+
+            var inputBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(input));
+            var settingsBytes = Encoding.UTF8.GetBytes(input.settings);
+            var contextBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(request.context));
+            var promptBytes = Encoding.UTF8.GetBytes(prompt);
+            var generatedPromptBytes = Encoding.UTF8.GetBytes(newPrompt);
+            var idBytes = Encoding.UTF8.GetBytes(id.ToString());
+            var putObjectArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/input.json").WithStreamData(new MemoryStream(inputBytes)).WithObjectSize(inputBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putObjectArgs);
+            var putSettingsArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/settings.cfg").WithStreamData(new MemoryStream(settingsBytes)).WithObjectSize(settingsBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(putSettingsArgs);
+            var putContextArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/context.json").WithStreamData(new MemoryStream(contextBytes)).WithObjectSize(contextBytes.Length).WithContentType("application/json");
+            await _minioClient.PutObjectAsync(putContextArgs);
+            var promptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/prompt.txt").WithStreamData(new MemoryStream(promptBytes)).WithObjectSize(promptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(promptArgs);
+            var gptPromptArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/gptprompt.txt").WithStreamData(new MemoryStream(generatedPromptBytes)).WithObjectSize(generatedPromptBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(gptPromptArgs);
+
+            var idArgs = new PutObjectArgs().WithBucket(Names.WorkflowBucket).WithObject($"{id}/id.txt").WithStreamData(new MemoryStream(idBytes)).WithObjectSize(idBytes.Length).WithContentType("text/plain");
+            await _minioClient.PutObjectAsync(idArgs);
+            await _daprClient.SaveStateAsync(Names.StateStore, $"prompts-{id}", newPrompt);
+            //await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.ModifyAsync(p => p.Content = $"Queued `majesty-diffusion` dream\n > {modal.Prompt}"));
+            await Enqueue(request, true);
+
+            var response = await GetGPTQueueResponse(prompt);
+
+            if (string.IsNullOrEmpty(username))
+                username = "t";
+
+            await ModifyOriginalResponseAsync(p => p.Content = $"{response}\n\n https://twitter.com/{username}/status/{tweet.ID}\n```{newPrompt}```");
+        }
 
         [SlashCommand("nmbart", "Create a work of art")]
         public async Task ArtCommandAsync(string prompt, LatentDiffusionModelType model = LatentDiffusionModelType.Finetuned)
